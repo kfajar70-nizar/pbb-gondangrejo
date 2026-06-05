@@ -27,7 +27,7 @@ st.markdown("""
         font-weight: 800 !important;
         text-align: center;
     }
-    h3 {
+    h2, h3 {
         color: #9b5de5 !important;
     }
     .futuristic-card {
@@ -70,47 +70,56 @@ st.markdown("""
 CSV_FILE_NAME = "data_pbb.csv"
 
 def format_clean_luas(val):
-    """Fungsi untuk memperbaiki angka luas yang salah baca titik desimal"""
     if pd.isna(val):
-        return "0"
+        return 0
     val_str = str(val).strip()
-    # Jika terlanjur dibaca desimal oleh python (ada titik di tengah)
     if '.' in val_str:
         parts = val_str.split('.')
-        # Satukan kembali tanpa titik dan tambahkan nol jika buntut desimalnya pendek
         if len(parts[1]) == 1:
-            return parts[0] + parts[1] + "00"
+            return int(parts[0] + parts[1] + "00")
         elif len(parts[1]) == 2:
-            return parts[0] + parts[1] + "0"
+            return int(parts[0] + parts[1] + "0")
         else:
-            return parts[0] + parts[1]
-    return val_str
-
-def format_rupiah(val):
-    """Fungsi untuk memformat angka polos menjadi format Rupiah ber-titik"""
-    if pd.isna(val):
-        return "Rp 0"
+            return int(parts[0] + parts[1])
     try:
-        # Bersihkan string dari karakter non-angka
-        clean_val = ''.join(filter(str.isdigit, str(val)))
-        if not clean_val:
-            return "Rp 0"
-        angka = int(clean_val)
-        return f"Rp {angka:,}".replace(",", ".")
+        # Bersihkan titik ribuan bawaan excel jika ada
+        val_str = val_str.replace('.', '')
+        return int(val_str)
     except:
-        return f"Rp {val}"
+        return 0
+
+def format_clean_rupiah(val):
+    if pd.isna(val):
+        return 0
+    try:
+        clean_val = ''.join(filter(str.isdigit, str(val)))
+        return int(clean_val) if clean_val else 0
+    except:
+        return 0
 
 def load_local_data():
     if not os.path.exists(CSV_FILE_NAME):
         st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan di GitHub kamu!")
         st.stop()
     try:
-        # Membaca data lokal dan memaksa kolom Luas dibaca sebagai Text agar titiknya tidak rusak
-        df = pd.read_csv(CSV_FILE_NAME, skiprows=4, dtype={
-            'LUAS BUMI': str,
-            'LUAS BNG': str
-        })
+        # Membaca data lokal
+        df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
         df.columns = df.columns.str.strip()
+        
+        # Bersihkan kolom-kolom penting ke tipe angka agar bisa dijumlahkan (rekap)
+        df['LUAS BUMI NUM'] = df['LUAS BUMI'].apply(format_clean_luas)
+        df['LUAS BNG NUM'] = df['LUAS BNG'].apply(format_clean_luas)
+        df['TAGIHAN NUM'] = df['PBB HARUS DIBAYAR (Rp)'].apply(format_clean_rupiah)
+        
+        # Ekstrak Kode Blok otomatis dari string NOP (misal ke-5 setelah titik: 18.10.080.003.XXX)
+        def ambil_blok(nop_val):
+            try:
+                parts = str(nop_val).split('.')
+                return parts[4] if len(parts) > 4 else "Lainnya"
+            except:
+                return "Lainnya"
+        df['BLOK_CODE'] = df['NOP'].apply(ambil_blok)
+        
         return df
     except Exception as e:
         st.error(f"⚠️ Gagal membaca database CSV lokal. Error: {e}")
@@ -125,7 +134,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v6.1</b><br>Database Lokal CSV Auto-Format © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.0</b><br>Database Lokal CSV + Rekap © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -157,15 +166,9 @@ if pilihan_login == "Portal Warga (User)":
                     v_nop = data.get('NOP', 'Tidak Ada Data')
                     v_nama = data.get('NAMA WP', 'Tidak Ada Data')
                     v_alamat = data.get('ALAMAT OP', 'Tidak Ada Data')
-                    
-                    # Perbaikan format Luas Bumi & Luas Bangunan otomatis
-                    v_bumi = format_clean_luas(data.get('LUAS BUMI'))
-                    v_bng = format_clean_luas(data.get('LUAS BNG'))
-                    
-                    # Perbaikan format Rupiah otomatis
-                    v_bayar = format_rupiah(data.get('PBB HARUS DIBAYAR (Rp)'))
-                    
-                    # Kolom A (Indeks 0) untuk Status Lapangan Kolektor
+                    v_bumi = data['LUAS BUMI NUM']
+                    v_bng = data['LUAS BNG NUM']
+                    v_bayar = data['TAGIHAN NUM']
                     v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
                     
                     st.markdown(f"""
@@ -175,27 +178,95 @@ if pilihan_login == "Portal Warga (User)":
                         <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{str(v_nama)}</span></p>
                         <p><b>ALAMAT OP:</b> {v_alamat}</p>
                         <hr style='border-color:rgba(255,255,255,0.1);'>
-                        <p>📐 <b>Luas Bumi:</b> {v_bumi} m² | 🏢 <b>Luas Bangunan:</b> {v_bng} m²</p>
+                        <p>📐 <b>Luas Bumi:</b> {v_bumi:,} m² | 🏢 <b>Luas Bangunan:</b> {v_bng:,} m²</p>
                         <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{v_status}</span></p>
                         <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
                             <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
-                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>{v_bayar}</span>
+                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar:,}</span>
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    """.replace(",", "."), unsafe_allow_html=True)
                 else:
                     st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tersebut tidak ditemukan.")
         else:
             st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
 
 # ==========================================
-# 2. PORTAL PAMONG / ADMIN INTERFACE
+# 2. PORTAL PAMONG / ADMIN INTERFACE (DASHBOARD REKAP)
 # ==========================================
 elif pilihan_login == "Pamong Desa (Admin)":
-    st.markdown("<h1>⚙️ CONTROL PANEL ADMIN</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>⚙️ CONTROL PANEL & REKAP DESA</h1>", unsafe_allow_html=True)
     
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
-        st.success("Akses Diterima. Selamat Bertugas, Pamong Desa!")
+        st.success("🔒 Akses Diterima. Dashboard Rekap Terbuka.")
+        
+        # --- LOGIKA HITUNG DATA REKAP ---
+        total_wp = len(df_master)
+        total_target_pbb = df_master['TAGIHAN NUM'].sum()
+        total_luas_bumi = df_master['LUAS BUMI NUM'].sum()
+        total_luas_bng = df_master['LUAS BNG NUM'].sum()
+        
+        # --- UI TAMPILAN KARTU RINGKASAN ---
+        st.write("### 🌌 RINGKASAN GLOBAL DESA GONDANGREJO")
+        
+        m_col1, m_col2 = st.columns(2)
+        with m_col1:
+            st.markdown(f"""
+            <div class="futuristic-card" style="text-align: center;">
+                <span style="color:#8d99ae; font-size:0.9rem;">👥 TOTAL WAJIB PAJAK</span><br>
+                <span style="font-size:1.8rem; color:#00f5d4; font-weight:bold;">{total_wp:,} WP</span>
+            </div>
+            """.replace(",", "."), unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div class="futuristic-card" style="text-align: center;">
+                <span style="color:#8d99ae; font-size:0.9rem;">📐 TOTAL LUAS BUMI DESA</span><br>
+                <span style="font-size:1.8rem; color:#fff; font-weight:bold;">{total_luas_bumi:,} m²</span>
+            </div>
+            """.replace(",", "."), unsafe_allow_html=True)
+            
+        with m_col2:
+            st.markdown(f"""
+            <div class="futuristic-card" style="text-align: center;">
+                <span style="color:#8d99ae; font-size:0.9rem;">💰 TOTAL TARGET KETETAPAN PBB</span><br>
+                <span style="font-size:1.8rem; color:#00f5d4; font-weight:bold;">Rp {total_target_pbb:,}</span>
+            </div>
+            """.replace(",", "."), unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div class="futuristic-card" style="text-align: center;">
+                <span style="color:#8d99ae; font-size:0.9rem;">🏢 TOTAL LUAS BANGUNAN DESA</span><br>
+                <span style="font-size:1.8rem; color:#fff; font-weight:bold;">{total_luas_bng:,} m²</span>
+            </div>
+            """.replace(",", "."), unsafe_allow_html=True)
+
+        # --- REKAP PER BLOK / KODE BLOK ---
+        st.write("### 📊 REKAPITULASI TARGET PER KODE BLOK")
+        
+        # Kelompokkan data berdasarkan Kode Blok dari NOP
+        df_rekap_blok = df_master.groupby('BLOK_CODE').agg(
+            Jumlah_WP=('NOP', 'count'),
+            Total_Luas_Bumi=('LUAS BUMI NUM', 'sum'),
+            Total_Target_PBB=('TAGIHAN NUM', 'sum')
+        ).reset_index()
+        
+        # Urutkan berdasarkan Kode Blok biar rapi
+        df_rekap_blok = df_rekap_blok.sort_values(by='BLOK_CODE')
+        
+        # Beri format tampilan ribuan pada tabel rekap agar enak dibaca Admin
+        df_tampilan_rekap = df_rekap_blok.copy()
+        df_tampilan_rekap['Jumlah_WP'] = df_tampilan_rekap['Jumlah_WP'].map('{:,}'.format).str.replace(',', '.')
+        df_tampilan_rekap['Total_Luas_Bumi'] = df_tampilan_rekap['Total_Luas_Bumi'].map('{:,} m²'.format).str.replace(',', '.')
+        df_tampilan_rekap['Total_Target_PBB'] = df_tampilan_rekap['Total_Target_PBB'].map('Rp {:,}'.format).str.replace(',', '.')
+        df_tampilan_rekap.columns = ['KODE BLOK', 'JUMLAH WP', 'TOTAL LUAS BUMI', 'TOTAL TARGET TAGIHAN PBB']
+        
+        # Tampilkan tabel data interaktif
+        st.dataframe(df_tampilan_rekap, use_container_width=True, hide_index=True)
+        
+        # Tambahan Fitur: Grafik Bar untuk Target Pajak per Blok
+        st.write("📈 **Grafik Perbandingan Target PBB Antar Blok (Rp)**")
+        st.bar_chart(data=df_rekap_blok, x='BLOK_CODE', y='Total_Target_PBB', color='#00f5d4')
+
     elif password != "":
-        st.error("Kode Otorisasi Salah! Akses Ditolak.")
+        st.error("Kode Otorisasi Salah! Akses Panel Rekap Ditolak.")
