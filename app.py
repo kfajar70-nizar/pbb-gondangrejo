@@ -18,21 +18,15 @@ SHEET_NAME = "Sheet1"  # Sesuaikan dengan nama sheet di Google Sheets kamu
 # URL untuk membaca data Google Sheets secara langsung dalam bentuk CSV
 GOOGLE_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
-# URL Webhook/Script untuk menulis data (Akan diaktifkan pada tahap selanjutnya)
-# Untuk saat ini kita fokus ke visual futuristik dan pembacaan real-time dulu.
-
 # ==========================================
 # CUSTOM CSS FOR FUTURISTIC UI (DARK & NEON)
 # ==========================================
 st.markdown("""
 <style>
-    /* Mengubah background utama aplikasi */
     .stApp {
         background: radial-gradient(circle, #0d1b2a 0%, #010811 100%);
         color: #e0e1dd;
     }
-    
-    /* Mengubah gaya teks judul */
     h1 {
         color: #00f5d4 !important;
         text-shadow: 0 0 10px rgba(0, 245, 212, 0.5);
@@ -40,12 +34,9 @@ st.markdown("""
         font-weight: 800 !important;
         text-align: center;
     }
-    
     h3 {
         color: #9b5de5 !important;
     }
-    
-    /* Mengubah tampilan Card / Kartu Informasi */
     .futuristic-card {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(0, 245, 212, 0.2);
@@ -54,16 +45,12 @@ st.markdown("""
         margin-bottom: 15px;
         box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(5px);
-        -webkit-backdrop-filter: blur(5px);
         transition: all 0.3s ease-in-out;
     }
-    
     .futuristic-card:hover {
         border-color: #00f5d4;
         box-shadow: 0 0 15px rgba(0, 245, 212, 0.3);
     }
-    
-    /* Tombol Utama */
     .stButton>button {
         background: linear-gradient(45deg, #00f5d4, #7b2cbf) !important;
         color: white !important;
@@ -73,62 +60,73 @@ st.markdown("""
         font-weight: bold !important;
         width: 100%;
         box-shadow: 0 4px 15px rgba(0, 245, 212, 0.2);
-        transition: transform 0.2s;
     }
-    
     .stButton>button:hover {
-        transform: scale(1.02);
         box-shadow: 0 4px 20px rgba(0, 245, 212, 0.5);
     }
-    
-    /* Label Input */
     label {
         color: #00f5d4 !important;
         font-weight: 600 !important;
-        letter-spacing: 0.5px;
     }
 </style>
-""", unsafe_allow_value=False)
+""", unsafe_allow_value=True)
 
 # ==========================================
-# DATA LOADING FUNCTION (REAL-TIME FROM GOOGLE SHEETS)
+# DATA LOADING FUNCTION (OPTIMIZED & AUTO-CLEAN)
 # ==========================================
 def load_data_from_sheets():
     try:
-        # Membaca data langsung dari awan (skip 4 baris pertama sesuai struktur file kamu)
-        df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
-        df.columns = df.columns.str.strip()
+        # Baca semua data tanpa skip baris dulu untuk mendeteksi posisi header otomatis
+        df_raw = pd.read_csv(GOOGLE_SHEET_URL)
+        
+        # Mencari baris mana yang berisi kata "NOP" untuk dijadikan Header asli
+        row_idx_header = None
+        for idx, row in df_raw.iterrows():
+            if row.astype(str).str.contains('NOP').any():
+                row_idx_header = idx
+                break
+                
+        if row_idx_header is not None:
+            # Baca ulang data dengan melewati baris sebelum header utama
+            df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=row_idx_header + 1)
+        else:
+            # Jika tidak ketemu otomatis, gunakan fallback skip 4 baris bawaan awal
+            df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
+            
+        # Bersihkan nama kolom dari spasi liar dan buat jadi uppercase agar konsisten
+        df.columns = df.columns.str.strip().str.upper()
         return df
     except Exception as e:
-        st.error(f"Gagal terhubung ke Google Sheets. Pastikan ID dan Hak Akses Link sudah Benar. Error: {e}")
+        st.error(f"⚠️ Gagal terhubung ke Google Sheets. Error: {e}")
         st.stop()
 
 df_master = load_data_from_sheets()
 
+# Mencari nama kolom secara fleksibel agar tidak sensitif huruf besar/kecil atau tanda kurung
+col_nop = [c for c in df_master.columns if 'NOP' in c][0] if len([c for c in df_master.columns if 'NOP' in c]) > 0 else None
+col_nama = [c for c in df_master.columns if 'NAMA' in c][0] if len([c for c in df_master.columns if 'NAMA' in c]) > 0 else None
+col_alamat = [c for c in df_master.columns if 'ALAMAT' in c][0] if len([c for c in df_master.columns if 'ALAMAT' in c]) > 0 else None
+col_bumi = [c for c in df_master.columns if 'BUMI' in c][0] if len([c for c in df_master.columns if 'BUMI' in c]) > 0 else None
+col_bng = [c for c in df_master.columns if 'BNG' in c or 'BANGUNAN' in c][0] if len([c for c in df_master.columns if 'BNG' in c or 'BANGUNAN' in c]) > 0 else None
+col_bayar = [c for c in df_master.columns if 'BAYAR' in c or 'PBB HARUS' in c][0] if len([c for c in df_master.columns if 'BAYAR' in c or 'PBB HARUS' in c]) > 0 else None
+
 # ==========================================
 # SIDEBAR NAVIGATION
 # ==========================================
-st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYSTEM</h2>", unsafe_allow_value=False)
+st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYSTEM</h2>", unsafe_allow_value=True)
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
-
 st.sidebar.write("---")
-st.sidebar.markdown("""
-<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'>
-    <b>PBB GONDANGREJO v4.0</b><br>
-    Digitalisasi Sistem Desa Smart City © 2026
-</div>
-""", unsafe_allow_value=False)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.1</b><br>Desa Smart City © 2026</div>", unsafe_allow_value=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
 # ==========================================
 if pilihan_login == "Portal Warga (User)":
-    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_value=False)
-    st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_value=False)
+    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_value=True)
+    st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_value=True)
     st.write("")
     
-    # Grid Input bergandengan yang estetik
     col1, col2 = st.columns(2)
     with col1:
         input_blok = st.text_input("📡 KODE BLOK / DUSUN", placeholder="Contoh: 5", key="user_blok")
@@ -136,36 +134,46 @@ if pilihan_login == "Portal Warga (User)":
         input_no = st.text_input("🔢 NOMOR URUT NOP", placeholder="Contoh: 164", key="user_no")
         
     st.write("")
-    if st.button("PINDAS DATA (SCAN MASTER)"):
+    if st.button("PINDAI DATA (SCAN MASTER)"):
         if input_blok and input_no:
             with st.spinner("Sinkronisasi data satelit desa..."):
                 blok_formatted = input_blok.zfill(3)
                 no_formatted = input_no.zfill(4)
                 pola_cari = f".{blok_formatted}.{no_formatted}."
                 
-                hasil = df_master[df_master['NOP'].str.contains(pola_cari, na=False, regex=False)]
-                
-                if not hasil.empty:
-                    data = hasil.iloc[0]
+                if col_nop:
+                    hasil = df_master[df_master[col_nop].astype(str).str.contains(pola_cari, na=False, regex=False)]
                     
-                    # Tampilan Kartu Hasil yang Sangat Futuristik
-                    st.markdown(f"""
-                    <div class="futuristic-card">
-                        <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
-                        <p><b>NOP:</b> <span style='color:#00f5d4;'>{data['NOP']}</span></p>
-                        <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{str(data['NAMA WP'])}</span></p>
-                        <p><b>ALAMAT OP:</b> {data['ALAMAT OP']}</p>
-                        <hr style='border-color:rgba(255,255,255,0.1);'>
-                        <p>📐 <b>Luas Bumi:</b> {data['LUAS BUMI']} m² | 🏢 <b>Luas Bangunan:</b> {data['LUAS BNG']} m²</p>
-                        <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{data.iloc[0] if not pd.isna(data.iloc[0]) else 'Belum Diinput'}</span></p>
-                        <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
-                            <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
-                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {data['PBB HARUS DIBAYAR (Rp)']}</span>
+                    if not hasil.empty:
+                        data = hasil.iloc[0]
+                        
+                        v_nop = data[col_nop]
+                        v_nama = data[col_nama] if col_nama else "Tidak Ada Data"
+                        v_alamat = data[col_alamat] if col_alamat else "Tidak Ada Data"
+                        v_bumi = data[col_bumi] if col_bumi else "0"
+                        v_bng = data[col_bng] if col_bng else "0"
+                        v_bayar = data[col_bayar] if col_bayar else "0"
+                        v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
+                        
+                        st.markdown(f"""
+                        <div class="futuristic-card">
+                            <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
+                            <p><b>NOP:</b> <span style='color:#00f5d4;'>{v_nop}</span></p>
+                            <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{v_nama}</span></p>
+                            <p><b>ALAMAT OP:</b> {v_alamat}</p>
+                            <hr style='border-color:rgba(255,255,255,0.1);'>
+                            <p>📐 <b>Luas Bumi:</b> {v_bumi} m² | 🏢 <b>Luas Bangunan:</b> {v_bng} m²</p>
+                            <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{v_status}</span></p>
+                            <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
+                                <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
+                                <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar}</span>
+                            </div>
                         </div>
-                    </div>
-                    """, unsafe_allow_value=False)
+                        """, unsafe_allow_value=True)
+                    else:
+                        st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tidak ditemukan.")
                 else:
-                    st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tidak terdaftar di server pusat.")
+                    st.error("Format kolom NOP pada Google Sheets tidak terdeteksi oleh sistem.")
         else:
             st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
 
@@ -173,51 +181,11 @@ if pilihan_login == "Portal Warga (User)":
 # 2. PORTAL PAMONG / ADMIN INTERFACE
 # ==========================================
 elif pilihan_login == "Pamong Desa (Admin)":
-    st.markdown("<h1>⚙️ CONTROL PANEL ADMIN</h1>", unsafe_allow_value=False)
+    st.markdown("<h1>⚙️ CONTROL PANEL ADMIN</h1>", unsafe_allow_value=True)
     
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
         st.success("Akses Diterima. Selamat Bertugas, Pamong Desa!")
-        
-        st.write("---")
-        st.subheader("🛠️ Modifikasi Status & Validasi Setoran")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            admin_blok = st.text_input("Blok Target", placeholder="Misal: 5", key="adm_blok")
-        with col2:
-            admin_no = st.text_input("Nomor Urut Target", placeholder="Misal: 164", key="adm_no")
-            
-        if admin_blok and admin_no:
-            b_form = admin_blok.zfill(3)
-            n_form = admin_no.zfill(4)
-            pola_admin = f".{b_form}.{n_form}."
-            
-            idx_hasil = df_master[df_master['NOP'].str.contains(pola_admin, na=False, regex=False)].index
-            
-            if len(idx_hasil) > 0:
-                idx = idx_hasil[0]
-                data_target = df_master.loc[idx]
-                
-                st.markdown(f"""
-                <div class="futuristic-card" style='border-color:#9b5de5;'>
-                    <span style='color:#9b5de5;'>Target Terkunci:</span><br>
-                    <b>WP:</b> {data_target['NAMA WP']} <br>
-                    <b>Tagihan:</b> Rp {data_target['PBB HARUS DIBAYAR (Rp)']}
-                </div>
-                """, unsafe_allow_value=False)
-                
-                aksi = st.selectbox("Pilih Tindakan Modifikasi:", ["Pilih...", "Validasi Kolektor Dusun", "Konfirmasi Sudah Setor", "Tandai Hapus/Batal"])
-                
-                if aksi == "Validasi Kolektor Dusun":
-                    nomor_dusun = st.number_input("Tugaskan ke Dusun (1-10):", min_value=1, max_value=10, value=1)
-                    if st.button("Suntik Data Kolektor"):
-                        st.info("💡 Data lokal berhasil dimodifikasi secara visual! Untuk menyimpan permanen ke Google Sheets, kita akan pasang fitur Webhook Script di langkah berikutnya.")
-                        
-                elif aksi == "Konfirmasi Sudah Setor":
-                    if st.button("Kunci Status Lunas (SUDAH SETOR)"):
-                        st.info("💡 Status Lunas disiapkan! Siap dikirim ke server cloud Google Sheets.")
-            else:
-                st.warning("NOP Target tidak ditemukan.")
+        st.info("Fitur Admin aktif. Menunggu pemasangan skrip simpan permanen.")
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Ditolak.")
