@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import requests
 
 # ==========================================
 # CONSTANTS & CONFIGURATION
@@ -72,37 +71,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# DATA LOADING FUNCTION (OPTIMIZED & AUTO-CLEAN)
+# DATA LOADING FUNCTION (PAS DENGAN BARIS KE-5 EXCEL DESA)
 # ==========================================
 def load_data_from_sheets():
     try:
-        df_raw = pd.read_csv(GOOGLE_SHEET_URL)
+        # Lompat langsung 4 baris kosong teratas agar baris ke-5 otomatis jadi Judul Kolom yang Benar
+        df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
         
-        row_idx_header = None
-        for idx, row in df_raw.iterrows():
-            if row.astype(str).str.contains('NOP').any():
-                row_idx_header = idx
-                break
-                
-        if row_idx_header is not None:
-            df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=row_idx_header + 1)
-        else:
-            df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
-            
-        df.columns = df.columns.str.strip().str.upper()
+        # Bersihkan spasi liar di nama kolom
+        df.columns = df.columns.str.strip()
         return df
     except Exception as e:
         st.error(f"⚠️ Gagal terhubung ke Google Sheets. Error: {e}")
         st.stop()
 
 df_master = load_data_from_sheets()
-
-col_nop = [c for c in df_master.columns if 'NOP' in c][0] if len([c for c in df_master.columns if 'NOP' in c]) > 0 else None
-col_nama = [c for c in df_master.columns if 'NAMA' in c][0] if len([c for c in df_master.columns if 'NAMA' in c]) > 0 else None
-col_alamat = [c for c in df_master.columns if 'ALAMAT' in c][0] if len([c for c in df_master.columns if 'ALAMAT' in c]) > 0 else None
-col_bumi = [c for c in df_master.columns if 'BUMI' in c][0] if len([c for c in df_master.columns if 'BUMI' in c]) > 0 else None
-col_bng = [c for c in df_master.columns if 'BNG' in c or 'BANGUNAN' in c][0] if len([c for c in df_master.columns if 'BNG' in c or 'BANGUNAN' in c]) > 0 else None
-col_bayar = [c for c in df_master.columns if 'BAYAR' in c or 'PBB HARUS' in c][0] if len([c for c in df_master.columns if 'BAYAR' in c or 'PBB HARUS' in c]) > 0 else None
 
 # ==========================================
 # SIDEBAR NAVIGATION
@@ -111,7 +94,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.1</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.2</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -135,25 +118,29 @@ if pilihan_login == "Portal Warga (User)":
                 no_formatted = input_no.zfill(4)
                 pola_cari = f".{blok_formatted}.{no_formatted}."
                 
-                if col_nop:
-                    hasil = df_master[df_master[col_nop].astype(str).str.contains(pola_cari, na=False, regex=False)]
+                # Memastikan kolom 'NOP' ada di sheet
+                if 'NOP' in df_master.columns:
+                    hasil = df_master[df_master['NOP'].astype(str).str.contains(pola_cari, na=False, regex=False)]
                     
                     if not hasil.empty:
                         data = hasil.iloc[0]
                         
-                        v_nop = data[col_nop]
-                        v_nama = data[col_nama] if col_nama else "Tidak Ada Data"
-                        v_alamat = data[col_alamat] if col_alamat else "Tidak Ada Data"
-                        v_bumi = data[col_bumi] if col_bumi else "0"
-                        v_bng = data[col_bng] if col_bng else "0"
-                        v_bayar = data[col_bayar] if col_bayar else "0"
+                        # Mengambil data berdasarkan nama kolom eksak dari file kamu
+                        v_nop = data.get('NOP', 'Tidak Ada Data')
+                        v_nama = data.get('NAMA WP', 'Tidak Ada Data')
+                        v_alamat = data.get('ALAMAT OP', 'Tidak Ada Data')
+                        v_bumi = data.get('LUAS BUMI', '0')
+                        v_bng = data.get('LUAS BNG', '0')
+                        v_bayar = data.get('PBB HARUS DIBAYAR (Rp)', '0')
+                        
+                        # Kolom pertama di file kamu bertindak sebagai STATUS LAPANGAN
                         v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
                         
                         st.markdown(f"""
                         <div class="futuristic-card">
                             <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
                             <p><b>NOP:</b> <span style='color:#00f5d4;'>{v_nop}</span></p>
-                            <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{v_nama}</span></p>
+                            <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{str(v_nama)}</span></p>
                             <p><b>ALAMAT OP:</b> {v_alamat}</p>
                             <hr style='border-color:rgba(255,255,255,0.1);'>
                             <p>📐 <b>Luas Bumi:</b> {v_bumi} m² | 🏢 <b>Luas Bangunan:</b> {v_bng} m²</p>
@@ -167,7 +154,7 @@ if pilihan_login == "Portal Warga (User)":
                     else:
                         st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tidak ditemukan.")
                 else:
-                    st.error("Format kolom NOP pada Google Sheets tidak terdeteksi oleh sistem.")
+                    st.error("Sistem gagal mendeteksi baris judul tabel. Pastikan baris ke-5 di Google Sheets berisi 'NOP, NAMA WP, ALAMAT OP'.")
         else:
             st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
 
@@ -180,6 +167,6 @@ elif pilihan_login == "Pamong Desa (Admin)":
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
         st.success("Akses Diterima. Selamat Bertugas, Pamong Desa!")
-        st.info("Fitur Admin aktif. Menunggu pemasangan skrip simpan permanen.")
+        st.info("Panel Kontrol Admin aktif dan aman.")
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Ditolak.")
