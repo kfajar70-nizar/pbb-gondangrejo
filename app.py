@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # MASUKKAN ID GOOGLE SHEETS KAMU DI SINI
-SHEET_ID = "GANTI_DENGAN_ID_GOOGLE_SHEETS_KAMU"
+SHEET_ID = "1u5-c-80qizd21xU4jw5sD4LZE2dGlPqWbCUh5AMc5Jw"
 SHEET_NAME = "Sheet1"  # Sesuaikan dengan nama sheet di Google Sheets kamu
 
 # URL untuk membaca data Google Sheets secara langsung dalam bentuk CSV
