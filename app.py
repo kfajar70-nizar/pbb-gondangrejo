@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+import os
 
 # ==========================================
 # CONFIGURATION
@@ -63,47 +65,24 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# DATABASE INTERNAL (DATA PAJAK DESA MUTLAK)
+# AUTOMATIC DATA LOADING FROM LOCAL CSV
 # ==========================================
-# Kamu bisa terus menambah baris data ke bawah di dalam kurung siku ini mengikuti formatnya
-DATA_PBB = [
-    {
-        "blok": "001", "no_urut": "0001", 
-        "nop": "18.10.080.003.001.0001.0", "nama": "TUGINO", 
-        "alamat": "DS. 1 RT: 001 RW: 01", "luas_bumi": "500", "luas_bng": "45", 
-        "tagihan": "Rp 75.000", "status": "OK-Dusun_1"
-    },
-    {
-        "blok": "005", "no_urut": "0164", 
-        "nop": "18.10.080.003.005.0164.0", "nama": "SAMINO", 
-        "alamat": "DS 3 RT: 009 RW: 03", "luas_bumi": "800", "luas_bng": "0", 
-        "tagihan": "Rp 107.80", "status": "Lunas (Kolektor 5)"
-    },
-    {
-        "blok": "004", "no_urut": "0145", 
-        "nop": "18.10.080.003.004.0145.0", "nama": "KATINO", 
-        "alamat": "DS 02 RT: 006 RW: 03", "luas_bumi": "400", "luas_bng": "0", 
-        "tagihan": "Rp 34.38", "status": "Lunas (Kolektor 4)"
-    },
-    {
-        "blok": "005", "no_urut": "0071", 
-        "nop": "18.10.080.003.005.0071.0", "nama": "WARDOYO", 
-        "alamat": "DS 02 RT: 006 RW: 03", "luas_bumi": "765", "luas_bng": "31", 
-        "tagihan": "Rp 39.02", "status": "Belum Bayar"
-    },
-    {
-        "blok": "005", "no_urut": "0060", 
-        "nop": "18.10.080.003.005.0060.0", "nama": "PONEN", 
-        "alamat": "DS 4 RT: 000 RW: 00", "luas_bumi": "955", "luas_bng": "0", 
-        "tagihan": "Rp 49.80", "status": "Belum Bayar"
-    },
-    {
-        "blok": "005", "no_urut": "0055", 
-        "nop": "18.10.080.003.005.0055.0", "nama": "KIJAN", 
-        "alamat": "DSN II RT: 006 RW: 03", "luas_bumi": "1.8", "luas_bng": "0", 
-        "tagihan": "Rp 53.13", "status": "Belum Bayar"
-    }
-]
+CSV_FILE_NAME = "data_pbb.csv"
+
+def load_local_data():
+    if not os.path.exists(CSV_FILE_NAME):
+        st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan di GitHub kamu! Tolong upload file data aslimu dulu.")
+        st.stop()
+    try:
+        # Membaca data lokal secara aman dengan melompati header spanduk atas
+        df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
+        df.columns = df.columns.str.strip()
+        return df
+    except Exception as e:
+        st.error(f"⚠️ Gagal membaca database CSV lokal. Error: {e}")
+        st.stop()
+
+df_master = load_local_data()
 
 # ==========================================
 # SIDEBAR NAVIGATION
@@ -112,7 +91,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v5.1</b><br>Database Internal Clean © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v6.0</b><br>Database Lokal CSV © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -132,35 +111,46 @@ if pilihan_login == "Portal Warga (User)":
     if st.button("PINDAI DATA (SCAN MASTER)"):
         if input_blok and input_no:
             with st.spinner("Memindai database lokal desa..."):
-                # Standarisasi digit input agar selalu sama dengan database (Blok=3 digit, No Urut=4 digit)
+                # Menyamakan format digit input
                 blok_formatted = input_blok.zfill(3)
                 no_formatted = input_no.zfill(4)
+                pola_cari = f".{blok_formatted}.{no_formatted}"
                 
-                # Cari data di dalam array DATA_PBB
-                hasil = None
-                for data in DATA_PBB:
-                    if data["blok"] == blok_formatted and data["no_urut"] == no_formatted:
-                        hasil = data
-                        break
+                # Cari baris yang mengandung pola blok dan nomor urut di kolom NOP
+                hasil = df_master[df_master['NOP'].astype(str).str.contains(pola_cari, na=False, regex=False)]
                 
-                if hasil:
+                if not hasil.empty:
+                    data = hasil.iloc[0]
+                    
+                    # Membaca data langsung berdasarkan nama kolom asli dari file excel kamu
+                    v_nop = data.get('NOP', 'Tidak Ada Data')
+                    v_nama = data.get('NAMA WP', 'Tidak Ada Data')
+                    v_alamat = data.get('ALAMAT OP', 'Tidak Ada Data')
+                    v_bumi = data.get('LUAS BUMI', '0')
+                    v_bng = data.get('LUAS BNG', '0')
+                    v_bayar = data.get('PBB HARUS DIBAYAR (Rp)', '0')
+                    
+                    # Mengambil kolom pertama (Kolom A tanpa nama) sebagai status lapangan
+                    v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
+                    
+                    # Format ribuan untuk mempercantik tampilan angka luas jika diperlukan
                     st.markdown(f"""
                     <div class="futuristic-card">
                         <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
-                        <p><b>NOP:</b> <span style='color:#00f5d4;'>{hasil['nop']}</span></p>
-                        <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{hasil['nama']}</span></p>
-                        <p><b>ALAMAT OP:</b> {hasil['alamat']}</p>
+                        <p><b>NOP:</b> <span style='color:#00f5d4;'>{v_nop}</span></p>
+                        <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{str(v_nama)}</span></p>
+                        <p><b>ALAMAT OP:</b> {v_alamat}</p>
                         <hr style='border-color:rgba(255,255,255,0.1);'>
-                        <p>📐 <b>Luas Bumi:</b> {hasil['luas_bumi']} m² | 🏢 <b>Luas Bangunan:</b> {hasil['luas_bng']} m²</p>
-                        <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{hasil['status']}</span></p>
+                        <p>📐 <b>Luas Bumi:</b> {v_bumi} m² | 🏢 <b>Luas Bangunan:</b> {v_bng} m²</p>
+                        <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{v_status}</span></p>
                         <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
                             <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
-                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>{hasil['tagihan']}</span>
+                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar}</span>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tersebut tidak terdaftar di database lokal.")
+                    st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tersebut tidak ditemukan.")
         else:
             st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
 
