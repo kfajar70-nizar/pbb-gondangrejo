@@ -71,21 +71,37 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# DATA LOADING FUNCTION (PAS DENGAN BARIS KE-5 EXCEL DESA)
+# DATA LOADING FUNCTION (SUPER SMART & FLEXIBLE)
 # ==========================================
 def load_data_from_sheets():
     try:
-        # Lompat langsung 4 baris kosong teratas agar baris ke-5 otomatis jadi Judul Kolom yang Benar
+        # Lompat langsung ke baris tabel inti
         df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
         
-        # Bersihkan spasi liar di nama kolom
-        df.columns = df.columns.str.strip()
+        # Bersihkan spasi liar di nama kolom dan paksa jadi HURUF BESAR
+        df.columns = df.columns.str.strip().str.upper()
         return df
     except Exception as e:
         st.error(f"⚠️ Gagal terhubung ke Google Sheets. Error: {e}")
         st.stop()
 
 df_master = load_data_from_sheets()
+
+# Deteksi otomatis nama kolom asli menggunakan sistem pencari kata kunci parcial (Sangat Aman!)
+col_nop = [c for c in df_master.columns if 'NOP' in c][0] if len([c for c in df_master.columns if 'NOP' in c]) > 0 else None
+col_nama = [c for c in df_master.columns if 'NAMA' in c][0] if len([c for c in df_master.columns if 'NAMA' in c]) > 0 else None
+col_alamat = [c for c in df_master.columns if 'ALAMAT' in c][0] if len([c for c in df_master.columns if 'ALAMAT' in c]) > 0 else None
+col_bumi = [c for c in df_master.columns if 'LUAS BUMI' in c or 'BUMI' in c][0] if len([c for c in df_master.columns if 'BUMI' in c]) > 0 else None
+col_bng = [c for c in df_master.columns if 'LUAS BNG' in c or 'BNG' in c or 'BANGUNAN' in c][0] if len([c for c in df_master.columns if 'BNG' in c or 'BANGUNAN' in c]) > 0 else None
+
+# Kunci khusus untuk kolom nilai bayar rupiah agar tidak tertukar dengan kolom rekap kanan
+col_bayar = None
+for c in df_master.columns:
+    if 'HARUS DIBAYAR' in c or 'HARUS' in c or 'BAYAR' in c:
+        # Hindari mengambil kolom rekap "NILAI" di sebelah kanan
+        if 'NILAI' not in c:
+            col_bayar = c
+            break
 
 # ==========================================
 # SIDEBAR NAVIGATION
@@ -94,7 +110,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.2</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.3</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -118,22 +134,20 @@ if pilihan_login == "Portal Warga (User)":
                 no_formatted = input_no.zfill(4)
                 pola_cari = f".{blok_formatted}.{no_formatted}."
                 
-                # Memastikan kolom 'NOP' ada di sheet
-                if 'NOP' in df_master.columns:
-                    hasil = df_master[df_master['NOP'].astype(str).str.contains(pola_cari, na=False, regex=False)]
+                if col_nop:
+                    hasil = df_master[df_master[col_nop].astype(str).str.contains(pola_cari, na=False, regex=False)]
                     
                     if not hasil.empty:
                         data = hasil.iloc[0]
                         
-                        # Mengambil data berdasarkan nama kolom eksak dari file kamu
-                        v_nop = data.get('NOP', 'Tidak Ada Data')
-                        v_nama = data.get('NAMA WP', 'Tidak Ada Data')
-                        v_alamat = data.get('ALAMAT OP', 'Tidak Ada Data')
-                        v_bumi = data.get('LUAS BUMI', '0')
-                        v_bng = data.get('LUAS BNG', '0')
-                        v_bayar = data.get('PBB HARUS DIBAYAR (Rp)', '0')
+                        v_nop = data[col_nop]
+                        v_nama = data[col_nama] if col_nama else "Tidak Ada Data"
+                        v_alamat = data[col_alamat] if col_alamat else "Tidak Ada Data"
+                        v_bumi = data[col_bumi] if col_bumi else "0"
+                        v_bng = data[col_bng] if col_bng else "0"
+                        v_bayar = data[col_bayar] if col_bayar else "0"
                         
-                        # Kolom pertama di file kamu bertindak sebagai STATUS LAPANGAN
+                        # Kolom pertama (Kolom A) bertindak sebagai STATUS LAPANGAN KOLEKTOR
                         v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
                         
                         st.markdown(f"""
@@ -154,7 +168,7 @@ if pilihan_login == "Portal Warga (User)":
                     else:
                         st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tidak ditemukan.")
                 else:
-                    st.error("Sistem gagal mendeteksi baris judul tabel. Pastikan baris ke-5 di Google Sheets berisi 'NOP, NAMA WP, ALAMAT OP'.")
+                    st.error("Sistem gagal melacak lokasi kolom NOP. Periksa baris ke-5 pada lembar kerja Anda.")
         else:
             st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
 
@@ -167,6 +181,5 @@ elif pilihan_login == "Pamong Desa (Admin)":
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
         st.success("Akses Diterima. Selamat Bertugas, Pamong Desa!")
-        st.info("Panel Kontrol Admin aktif dan aman.")
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Ditolak.")
