@@ -69,13 +69,47 @@ st.markdown("""
 # ==========================================
 CSV_FILE_NAME = "data_pbb.csv"
 
+def format_clean_luas(val):
+    """Fungsi untuk memperbaiki angka luas yang salah baca titik desimal"""
+    if pd.isna(val):
+        return "0"
+    val_str = str(val).strip()
+    # Jika terlanjur dibaca desimal oleh python (ada titik di tengah)
+    if '.' in val_str:
+        parts = val_str.split('.')
+        # Satukan kembali tanpa titik dan tambahkan nol jika buntut desimalnya pendek
+        if len(parts[1]) == 1:
+            return parts[0] + parts[1] + "00"
+        elif len(parts[1]) == 2:
+            return parts[0] + parts[1] + "0"
+        else:
+            return parts[0] + parts[1]
+    return val_str
+
+def format_rupiah(val):
+    """Fungsi untuk memformat angka polos menjadi format Rupiah ber-titik"""
+    if pd.isna(val):
+        return "Rp 0"
+    try:
+        # Bersihkan string dari karakter non-angka
+        clean_val = ''.join(filter(str.isdigit, str(val)))
+        if not clean_val:
+            return "Rp 0"
+        angka = int(clean_val)
+        return f"Rp {angka:,}".replace(",", ".")
+    except:
+        return f"Rp {val}"
+
 def load_local_data():
     if not os.path.exists(CSV_FILE_NAME):
-        st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan di GitHub kamu! Tolong upload file data aslimu dulu.")
+        st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan di GitHub kamu!")
         st.stop()
     try:
-        # Membaca data lokal secara aman dengan melompati header spanduk atas
-        df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
+        # Membaca data lokal dan memaksa kolom Luas dibaca sebagai Text agar titiknya tidak rusak
+        df = pd.read_csv(CSV_FILE_NAME, skiprows=4, dtype={
+            'LUAS BUMI': str,
+            'LUAS BNG': str
+        })
         df.columns = df.columns.str.strip()
         return df
     except Exception as e:
@@ -91,7 +125,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v6.0</b><br>Database Lokal CSV © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v6.1</b><br>Database Lokal CSV Auto-Format © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -111,29 +145,29 @@ if pilihan_login == "Portal Warga (User)":
     if st.button("PINDAI DATA (SCAN MASTER)"):
         if input_blok and input_no:
             with st.spinner("Memindai database lokal desa..."):
-                # Menyamakan format digit input
                 blok_formatted = input_blok.zfill(3)
                 no_formatted = input_no.zfill(4)
                 pola_cari = f".{blok_formatted}.{no_formatted}"
                 
-                # Cari baris yang mengandung pola blok dan nomor urut di kolom NOP
                 hasil = df_master[df_master['NOP'].astype(str).str.contains(pola_cari, na=False, regex=False)]
                 
                 if not hasil.empty:
                     data = hasil.iloc[0]
                     
-                    # Membaca data langsung berdasarkan nama kolom asli dari file excel kamu
                     v_nop = data.get('NOP', 'Tidak Ada Data')
                     v_nama = data.get('NAMA WP', 'Tidak Ada Data')
                     v_alamat = data.get('ALAMAT OP', 'Tidak Ada Data')
-                    v_bumi = data.get('LUAS BUMI', '0')
-                    v_bng = data.get('LUAS BNG', '0')
-                    v_bayar = data.get('PBB HARUS DIBAYAR (Rp)', '0')
                     
-                    # Mengambil kolom pertama (Kolom A tanpa nama) sebagai status lapangan
+                    # Perbaikan format Luas Bumi & Luas Bangunan otomatis
+                    v_bumi = format_clean_luas(data.get('LUAS BUMI'))
+                    v_bng = format_clean_luas(data.get('LUAS BNG'))
+                    
+                    # Perbaikan format Rupiah otomatis
+                    v_bayar = format_rupiah(data.get('PBB HARUS DIBAYAR (Rp)'))
+                    
+                    # Kolom A (Indeks 0) untuk Status Lapangan Kolektor
                     v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
                     
-                    # Format ribuan untuk mempercantik tampilan angka luas jika diperlukan
                     st.markdown(f"""
                     <div class="futuristic-card">
                         <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
@@ -145,7 +179,7 @@ if pilihan_login == "Portal Warga (User)":
                         <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{v_status}</span></p>
                         <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
                             <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
-                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar}</span>
+                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>{v_bayar}</span>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
