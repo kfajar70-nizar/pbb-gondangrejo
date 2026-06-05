@@ -65,7 +65,7 @@ st.markdown("""
 # ==========================================
 # DATABASE INTERNAL (DATA PAJAK DESA MUTLAK)
 # ==========================================
-# Silakan tambah, kurangi, atau edit baris data di bawah ini sesuai kebutuhan desa
+# Kamu bisa terus menambah baris data ke bawah di dalam kurung siku ini mengikuti formatnya
 DATA_PBB = [
     {
         "blok": "001", "no_urut": "0001", 
@@ -112,7 +112,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v5.0</b><br>Database Internal Off-Grid © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v5.1</b><br>Database Internal Clean © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -132,11 +132,11 @@ if pilihan_login == "Portal Warga (User)":
     if st.button("PINDAI DATA (SCAN MASTER)"):
         if input_blok and input_no:
             with st.spinner("Memindai database lokal desa..."):
-                # Format agar digit selalu pas (Blok = 3 digit, No Urut = 4 digit)
+                # Standarisasi digit input agar selalu sama dengan database (Blok=3 digit, No Urut=4 digit)
                 blok_formatted = input_blok.zfill(3)
                 no_formatted = input_no.zfill(4)
                 
-                # Proses pencarian di dalam database internal
+                # Cari data di dalam array DATA_PBB
                 hasil = None
                 for data in DATA_PBB:
                     if data["blok"] == blok_formatted and data["no_urut"] == no_formatted:
@@ -173,6 +173,5 @@ elif pilihan_login == "Pamong Desa (Admin)":
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
         st.success("Akses Diterima. Selamat Bertugas, Pamong Desa!")
-        st.info("Database saat ini terkunci secara internal di dalam sistem script app.py.")
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Ditolak.")
