@@ -69,17 +69,15 @@ st.markdown("""
         font-weight: 600 !important;
     }
 </style>
-""", unsafe_allow_value=True)
+""", unsafe_allow_html=True)
 
 # ==========================================
 # DATA LOADING FUNCTION (OPTIMIZED & AUTO-CLEAN)
 # ==========================================
 def load_data_from_sheets():
     try:
-        # Baca semua data tanpa skip baris dulu untuk mendeteksi posisi header otomatis
         df_raw = pd.read_csv(GOOGLE_SHEET_URL)
         
-        # Mencari baris mana yang berisi kata "NOP" untuk dijadikan Header asli
         row_idx_header = None
         for idx, row in df_raw.iterrows():
             if row.astype(str).str.contains('NOP').any():
@@ -87,13 +85,10 @@ def load_data_from_sheets():
                 break
                 
         if row_idx_header is not None:
-            # Baca ulang data dengan melewati baris sebelum header utama
             df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=row_idx_header + 1)
         else:
-            # Jika tidak ketemu otomatis, gunakan fallback skip 4 baris bawaan awal
             df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
             
-        # Bersihkan nama kolom dari spasi liar dan buat jadi uppercase agar konsisten
         df.columns = df.columns.str.strip().str.upper()
         return df
     except Exception as e:
@@ -102,7 +97,6 @@ def load_data_from_sheets():
 
 df_master = load_data_from_sheets()
 
-# Mencari nama kolom secara fleksibel agar tidak sensitif huruf besar/kecil atau tanda kurung
 col_nop = [c for c in df_master.columns if 'NOP' in c][0] if len([c for c in df_master.columns if 'NOP' in c]) > 0 else None
 col_nama = [c for c in df_master.columns if 'NAMA' in c][0] if len([c for c in df_master.columns if 'NAMA' in c]) > 0 else None
 col_alamat = [c for c in df_master.columns if 'ALAMAT' in c][0] if len([c for c in df_master.columns if 'ALAMAT' in c]) > 0 else None
@@ -113,18 +107,18 @@ col_bayar = [c for c in df_master.columns if 'BAYAR' in c or 'PBB HARUS' in c][0
 # ==========================================
 # SIDEBAR NAVIGATION
 # ==========================================
-st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYSTEM</h2>", unsafe_allow_value=True)
+st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYSTEM</h2>", unsafe_allow_html=True)
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.1</b><br>Desa Smart City © 2026</div>", unsafe_allow_value=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.1</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
 # ==========================================
 if pilihan_login == "Portal Warga (User)":
-    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_value=True)
-    st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_value=True)
+    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_html=True)
     st.write("")
     
     col1, col2 = st.columns(2)
@@ -169,7 +163,7 @@ if pilihan_login == "Portal Warga (User)":
                                 <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar}</span>
                             </div>
                         </div>
-                        """, unsafe_allow_value=True)
+                        """, unsafe_allow_html=True)
                     else:
                         st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tidak ditemukan.")
                 else:
@@ -181,7 +175,7 @@ if pilihan_login == "Portal Warga (User)":
 # 2. PORTAL PAMONG / ADMIN INTERFACE
 # ==========================================
 elif pilihan_login == "Pamong Desa (Admin)":
-    st.markdown("<h1>⚙️ CONTROL PANEL ADMIN</h1>", unsafe_allow_value=True)
+    st.markdown("<h1>⚙️ CONTROL PANEL ADMIN</h1>", unsafe_allow_html=True)
     
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
