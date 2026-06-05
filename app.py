@@ -71,15 +71,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# DATA LOADING FUNCTION (SUPER SMART & FLEXIBLE)
+# DATA LOADING FUNCTION
 # ==========================================
 def load_data_from_sheets():
     try:
-        # Lompat langsung ke baris tabel inti
+        # Lompat langsung 4 baris teratas agar baris ke-5 jadi nama kolom asli
         df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
-        
-        # Bersihkan spasi liar di nama kolom dan paksa jadi HURUF BESAR
-        df.columns = df.columns.str.strip().str.upper()
+        # Bersihkan spasi di awal/akhir nama kolom, biarkan huruf asli (tidak di-UPPERCASE)
+        df.columns = df.columns.str.strip()
         return df
     except Exception as e:
         st.error(f"⚠️ Gagal terhubung ke Google Sheets. Error: {e}")
@@ -87,21 +86,19 @@ def load_data_from_sheets():
 
 df_master = load_data_from_sheets()
 
-# Deteksi otomatis nama kolom asli menggunakan sistem pencari kata kunci parcial (Sangat Aman!)
-col_nop = [c for c in df_master.columns if 'NOP' in c][0] if len([c for c in df_master.columns if 'NOP' in c]) > 0 else None
-col_nama = [c for c in df_master.columns if 'NAMA' in c][0] if len([c for c in df_master.columns if 'NAMA' in c]) > 0 else None
-col_alamat = [c for c in df_master.columns if 'ALAMAT' in c][0] if len([c for c in df_master.columns if 'ALAMAT' in c]) > 0 else None
-col_bumi = [c for c in df_master.columns if 'LUAS BUMI' in c or 'BUMI' in c][0] if len([c for c in df_master.columns if 'BUMI' in c]) > 0 else None
-col_bng = [c for c in df_master.columns if 'LUAS BNG' in c or 'BNG' in c or 'BANGUNAN' in c][0] if len([c for c in df_master.columns if 'BNG' in c or 'BANGUNAN' in c]) > 0 else None
+# Pemetaan nama kolom secara dinamis dan kebal huruf besar/kecil (Case-Insensitive)
+col_nop = [c for c in df_master.columns if 'NOP' in c.upper()][0] if len([c for c in df_master.columns if 'NOP' in c.upper()]) > 0 else None
+col_nama = [c for c in df_master.columns if 'NAMA' in c.upper()][0] if len([c for c in df_master.columns if 'NAMA' in c.upper()]) > 0 else None
+col_alamat = [c for c in df_master.columns if 'ALAMAT' in c.upper()][0] if len([c for c in df_master.columns if 'ALAMAT' in c.upper()]) > 0 else None
+col_bumi = [c for c in df_master.columns if 'LUAS BUMI' in c.upper() or 'BUMI' in c.upper()][0] if len([c for c in df_master.columns if 'BUMI' in c.upper()]) > 0 else None
+col_bng = [c for c in df_master.columns if 'LUAS BNG' in c.upper() or 'BNG' in c.upper()][0] if len([c for c in df_master.columns if 'BNG' in c.upper()]) > 0 else None
 
-# Kunci khusus untuk kolom nilai bayar rupiah agar tidak tertukar dengan kolom rekap kanan
+# Cari kolom tagihan hanya berdasarkan kata "HARUS DIBAYAR" agar tidak sensitif format (Rp)
 col_bayar = None
 for c in df_master.columns:
-    if 'HARUS DIBAYAR' in c or 'HARUS' in c or 'BAYAR' in c:
-        # Hindari mengambil kolom rekap "NILAI" di sebelah kanan
-        if 'NILAI' not in c:
-            col_bayar = c
-            break
+    if 'HARUS DIBAYAR' in c.upper():
+        col_bayar = c
+        break
 
 # ==========================================
 # SIDEBAR NAVIGATION
@@ -110,7 +107,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.3</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.4</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -135,6 +132,7 @@ if pilihan_login == "Portal Warga (User)":
                 pola_cari = f".{blok_formatted}.{no_formatted}."
                 
                 if col_nop:
+                    # Filter data berdasarkan kecocokan NOP
                     hasil = df_master[df_master[col_nop].astype(str).str.contains(pola_cari, na=False, regex=False)]
                     
                     if not hasil.empty:
@@ -147,7 +145,7 @@ if pilihan_login == "Portal Warga (User)":
                         v_bng = data[col_bng] if col_bng else "0"
                         v_bayar = data[col_bayar] if col_bayar else "0"
                         
-                        # Kolom pertama (Kolom A) bertindak sebagai STATUS LAPANGAN KOLEKTOR
+                        # Kolom indeks 0 (Kolom A) adalah Status Lapangan Kolektor
                         v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
                         
                         st.markdown(f"""
@@ -161,7 +159,7 @@ if pilihan_login == "Portal Warga (User)":
                             <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{v_status}</span></p>
                             <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
                                 <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
-                                <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar}</span>
+                                <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>{v_bayar}</span>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
