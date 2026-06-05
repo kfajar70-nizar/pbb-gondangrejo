@@ -75,9 +75,9 @@ st.markdown("""
 # ==========================================
 def load_data_from_sheets():
     try:
-        # Lompat langsung 4 baris teratas agar baris ke-5 jadi nama kolom asli
+        # Lompat 4 baris kosong teratas agar baris ke-5 pas jadi nama kolom asli
         df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
-        # Bersihkan spasi di awal/akhir nama kolom, biarkan huruf asli (tidak di-UPPERCASE)
+        # Bersihkan spasi di nama kolom, biarkan huruf besar-kecil asli
         df.columns = df.columns.str.strip()
         return df
     except Exception as e:
@@ -86,19 +86,22 @@ def load_data_from_sheets():
 
 df_master = load_data_from_sheets()
 
-# Pemetaan nama kolom secara dinamis dan kebal huruf besar/kecil (Case-Insensitive)
+# Cari nama kolom secara pintar di Google Sheets (Case-Insensitive)
 col_nop = [c for c in df_master.columns if 'NOP' in c.upper()][0] if len([c for c in df_master.columns if 'NOP' in c.upper()]) > 0 else None
 col_nama = [c for c in df_master.columns if 'NAMA' in c.upper()][0] if len([c for c in df_master.columns if 'NAMA' in c.upper()]) > 0 else None
 col_alamat = [c for c in df_master.columns if 'ALAMAT' in c.upper()][0] if len([c for c in df_master.columns if 'ALAMAT' in c.upper()]) > 0 else None
-col_bumi = [c for c in df_master.columns if 'LUAS BUMI' in c.upper() or 'BUMI' in c.upper()][0] if len([c for c in df_master.columns if 'BUMI' in c.upper()]) > 0 else None
-col_bng = [c for c in df_master.columns if 'LUAS BNG' in c.upper() or 'BNG' in c.upper()][0] if len([c for c in df_master.columns if 'BNG' in c.upper()]) > 0 else None
+col_bumi = [c for c in df_master.columns if 'LUAS BUMI' in c.upper() or 'LUAS_BUMI' in c.upper() or ('LUAS' in c.upper() and 'BUMI' in c.upper())][0] if len([c for c in df_master.columns if 'BUMI' in c.upper()]) > 0 else None
+col_bng = [c for c in df_master.columns if 'LUAS BNG' in c.upper() or 'LUAS_BNG' in c.upper() or ('LUAS' in c.upper() and 'BNG' in c.upper())][0] if len([c for c in df_master.columns if 'BNG' in c.upper()]) > 0 else None
 
-# Cari kolom tagihan hanya berdasarkan kata "HARUS DIBAYAR" agar tidak sensitif format (Rp)
+# Kunci kolom tagihan bayar (cari yang mengandung kata HARUS DIBAYAR)
 col_bayar = None
 for c in df_master.columns:
     if 'HARUS DIBAYAR' in c.upper():
         col_bayar = c
         break
+
+# Kolom pertama (Kolom A) di Google Sheets kamu bertindak sebagai STATUS LAPANGAN
+col_status = df_master.columns[0]
 
 # ==========================================
 # SIDEBAR NAVIGATION
@@ -107,7 +110,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.4</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.5</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -127,26 +130,28 @@ if pilihan_login == "Portal Warga (User)":
     if st.button("PINDAI DATA (SCAN MASTER)"):
         if input_blok and input_no:
             with st.spinner("Sinkronisasi data satelit desa..."):
+                # Menyamakan format digit (Blok = 3 digit, Nomor urut = 4 digit)
                 blok_formatted = input_blok.zfill(3)
                 no_formatted = input_no.zfill(4)
-                pola_cari = f".{blok_formatted}.{no_formatted}."
+                
+                # Pola cari super aman: COCOK DENGAN ".005.0164" di dalam string NOP asli
+                pola_cari = f".{blok_formatted}.{no_formatted}"
                 
                 if col_nop:
-                    # Filter data berdasarkan kecocokan NOP
+                    # Cari baris yang mengandung pola kode blok dan nomor urut tersebut
                     hasil = df_master[df_master[col_nop].astype(str).str.contains(pola_cari, na=False, regex=False)]
                     
                     if not hasil.empty:
                         data = hasil.iloc[0]
                         
+                        # Ambil nilai data berdasarkan deteksi nama kolom otomatis yang sudah dikunci di atas
                         v_nop = data[col_nop]
                         v_nama = data[col_nama] if col_nama else "Tidak Ada Data"
                         v_alamat = data[col_alamat] if col_alamat else "Tidak Ada Data"
                         v_bumi = data[col_bumi] if col_bumi else "0"
                         v_bng = data[col_bng] if col_bng else "0"
-                        v_bayar = data[col_bayar] if col_bayar else "0"
-                        
-                        # Kolom indeks 0 (Kolom A) adalah Status Lapangan Kolektor
-                        v_status = data.iloc[0] if not pd.isna(data.iloc[0]) else "Belum Diinput"
+                        v_bayar = data[col_bayar] if col_bayar else "Rp 0"
+                        v_status = data[col_status] if not pd.isna(data[col_status]) else "Belum Diinput"
                         
                         st.markdown(f"""
                         <div class="futuristic-card">
