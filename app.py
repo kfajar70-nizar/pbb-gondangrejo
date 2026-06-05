@@ -98,15 +98,14 @@ def format_clean_rupiah(val):
         return 0
 
 def bersihkan_nama_dusun(val):
-    """Mengubah format 'OK-Dusun_1' atau 'OK-DUSUN 2' menjadi 'DUSUN 1', 'DUSUN 2' yang seragam"""
+    """Mengubah format mentah 'OK-Dusun_1' atau 'OK-DUSUN 2' menjadi 'Dusun 1' yang rapi"""
     if pd.isna(val):
         return "Belum Diinput"
     val_upper = str(val).upper()
-    # Cari angka di dalam teks status lapangan menggunakan regex
     angka_dusun = re.findall(r'\d+', val_upper)
     if 'DUSUN' in val_upper and angka_dusun:
-        return f"DUSUN {angka_dusun[0]}"
-    return "Lainnya / Belum Kategori"
+        return f"Dusun {angka_dusun[0]}"
+    return str(val)
 
 def load_local_data():
     if not os.path.exists(CSV_FILE_NAME):
@@ -116,12 +115,12 @@ def load_local_data():
         df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
         df.columns = df.columns.str.strip()
         
-        # Bersihkan data angka
+        # Ekstraksi & konversi angka numerik
         df['LUAS BUMI NUM'] = df['LUAS BUMI'].apply(format_clean_luas)
         df['LUAS BNG NUM'] = df['LUAS BNG'].apply(format_clean_luas)
         df['TAGIHAN NUM'] = df['PBB HARUS DIBAYAR (Rp)'].apply(format_clean_rupiah)
         
-        # Kolom Pertama (Indeks 0) diekstrak menjadi nama DUSUN yang rapi
+        # Bersihkan Kolom Status Lapangan (Kolom Pertama / Indeks 0)
         kolom_status_asal = df.columns[0]
         df['DUSUN_CLEAN'] = df[kolom_status_asal].apply(bersihkan_nama_dusun)
         
@@ -139,13 +138,13 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.1</b><br>Grafik Rekap Dusun © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.2</b><br>Format Dusun Clean © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
 # ==========================================
 if pilihan_login == "Portal Warga (User)":
-    st.markdown("<h1> DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_html=True)
     st.write("")
     
@@ -175,8 +174,8 @@ if pilihan_login == "Portal Warga (User)":
                     v_bng = data['LUAS BNG NUM']
                     v_bayar = data['TAGIHAN NUM']
                     
-                    kolom_status_asal = df_master.columns[0]
-                    v_status = data[kolom_status_asal] if not pd.isna(data[kolom_status_asal]) else "Belum Diinput"
+                    # Menggunakan hasil pembersihan string dusun yang baru
+                    v_status = data['DUSUN_CLEAN']
                     
                     st.markdown(f"""
                     <div class="futuristic-card">
@@ -199,7 +198,7 @@ if pilihan_login == "Portal Warga (User)":
             st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
 
 # ==========================================
-# 2. PORTAL PAMONG / ADMIN INTERFACE (REKAP PER DUSUN)
+# 2. PORTAL PAMONG / ADMIN INTERFACE
 # ==========================================
 elif pilihan_login == "Pamong Desa (Admin)":
     st.markdown("<h1>⚙️ CONTROL PANEL & REKAP DESA</h1>", unsafe_allow_html=True)
@@ -243,31 +242,30 @@ elif pilihan_login == "Pamong Desa (Admin)":
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
 
-        # --- LOGIKA REKAP DATA PER DUSUN ---
+        # Rekap Per Dusun
         st.write("### 📊 REKAPITULASI TARGET PER WILAYAH DUSUN")
         
-        df_rekap_dusun = df_master.groupby('DUSUN_CLEAN').agg(
+        # Filter tampilan agar label dusun rapi dan urut
+        df_master['DUSUN_UPPER'] = df_master['DUSUN_CLEAN'].str.upper()
+        df_rekap_dusun = df_master.groupby('DUSUN_UPPER').agg(
             Jumlah_WP=('NOP', 'count'),
             Total_Luas_Bumi=('LUAS BUMI NUM', 'sum'),
             Total_Target_PBB=('TAGIHAN NUM', 'sum')
         ).reset_index()
         
-        # Urutkan abjad dusun biar rapi (Dusun 1, Dusun 2, dst)
-        df_rekap_dusun = df_rekap_dusun.sort_values(by='DUSUN_CLEAN')
+        df_rekap_dusun = df_rekap_dusun.sort_values(by='DUSUN_UPPER')
         
-        # Format tampilan tabel rekap untuk Admin
         df_tampilan_dusun = df_rekap_dusun.copy()
         df_tampilan_dusun['Jumlah_WP'] = df_tampilan_dusun['Jumlah_WP'].map('{:,}'.format).str.replace(',', '.')
         df_tampilan_dusun['Total_Luas_Bumi'] = df_tampilan_dusun['Total_Luas_Bumi'].map('{:,} m²'.format).str.replace(',', '.')
         df_tampilan_dusun['Total_Target_PBB'] = df_tampilan_dusun['Total_Target_PBB'].map('Rp {:,}'.format).str.replace(',', '.')
         df_tampilan_dusun.columns = ['WILAYAH DUSUN', 'JUMLAH WP', 'TOTAL LUAS BUMI', 'TOTAL TARGET TAGIHAN PBB']
         
-        # Tampilkan tabel interaktif
         st.dataframe(df_tampilan_dusun, use_container_width=True, hide_index=True)
         
-        # --- GRAFIK PER DUSUN NYATA ---
+        # Grafik Per Dusun
         st.write("📈 **Grafik Perbandingan Target Pajak Ketetapan per Dusun (Rp)**")
-        st.bar_chart(data=df_rekap_dusun, x='DUSUN_CLEAN', y='Total_Target_PBB', color='#9b5de5')
+        st.bar_chart(data=df_rekap_dusun, x='DUSUN_UPPER', y='Total_Target_PBB', color='#9b5de5')
 
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Panel Rekap Ditolak.")
