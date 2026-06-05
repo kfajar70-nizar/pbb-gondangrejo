@@ -1,21 +1,13 @@
 import streamlit as st
-import pandas as pd
 
 # ==========================================
-# CONSTANTS & CONFIGURATION
+# CONFIGURATION
 # ==========================================
 st.set_page_config(
     page_title="PBB Gondangrejo 2026", 
     page_icon="⚡",
     layout="centered"
 )
-
-# MASUKKAN ID GOOGLE SHEETS KAMU DI SINI
-SHEET_ID = "1u5-c-80qizd21xU4jw5sD4LZE2dGlPqWbCUh5AMc5Jw"
-SHEET_NAME = "Sheet1"  # Sesuaikan dengan nama sheet di Google Sheets kamu
-
-# URL untuk membaca data Google Sheets secara langsung dalam bentuk CSV
-GOOGLE_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
 # ==========================================
 # CUSTOM CSS FOR FUTURISTIC UI (DARK & NEON)
@@ -71,37 +63,47 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# DATA LOADING FUNCTION
+# DATABASE INTERNAL (DATA PAJAK DESA MUTLAK)
 # ==========================================
-def load_data_from_sheets():
-    try:
-        # Lompat 4 baris kosong teratas agar baris ke-5 pas jadi nama kolom asli
-        df = pd.read_csv(GOOGLE_SHEET_URL, skiprows=4)
-        # Bersihkan spasi di nama kolom, biarkan huruf besar-kecil asli
-        df.columns = df.columns.str.strip()
-        return df
-    except Exception as e:
-        st.error(f"⚠️ Gagal terhubung ke Google Sheets. Error: {e}")
-        st.stop()
-
-df_master = load_data_from_sheets()
-
-# Cari nama kolom secara pintar di Google Sheets (Case-Insensitive)
-col_nop = [c for c in df_master.columns if 'NOP' in c.upper()][0] if len([c for c in df_master.columns if 'NOP' in c.upper()]) > 0 else None
-col_nama = [c for c in df_master.columns if 'NAMA' in c.upper()][0] if len([c for c in df_master.columns if 'NAMA' in c.upper()]) > 0 else None
-col_alamat = [c for c in df_master.columns if 'ALAMAT' in c.upper()][0] if len([c for c in df_master.columns if 'ALAMAT' in c.upper()]) > 0 else None
-col_bumi = [c for c in df_master.columns if 'LUAS BUMI' in c.upper() or 'LUAS_BUMI' in c.upper() or ('LUAS' in c.upper() and 'BUMI' in c.upper())][0] if len([c for c in df_master.columns if 'BUMI' in c.upper()]) > 0 else None
-col_bng = [c for c in df_master.columns if 'LUAS BNG' in c.upper() or 'LUAS_BNG' in c.upper() or ('LUAS' in c.upper() and 'BNG' in c.upper())][0] if len([c for c in df_master.columns if 'BNG' in c.upper()]) > 0 else None
-
-# Kunci kolom tagihan bayar (cari yang mengandung kata HARUS DIBAYAR)
-col_bayar = None
-for c in df_master.columns:
-    if 'HARUS DIBAYAR' in c.upper():
-        col_bayar = c
-        break
-
-# Kolom pertama (Kolom A) di Google Sheets kamu bertindak sebagai STATUS LAPANGAN
-col_status = df_master.columns[0]
+# Silakan tambah, kurangi, atau edit baris data di bawah ini sesuai kebutuhan desa
+DATA_PBB = [
+    {
+        "blok": "001", "no_urut": "0001", 
+        "nop": "18.10.080.003.001.0001.0", "nama": "TUGINO", 
+        "alamat": "DS. 1 RT: 001 RW: 01", "luas_bumi": "500", "luas_bng": "45", 
+        "tagihan": "Rp 75.000", "status": "OK-Dusun_1"
+    },
+    {
+        "blok": "005", "no_urut": "0164", 
+        "nop": "18.10.080.003.005.0164.0", "nama": "SAMINO", 
+        "alamat": "DS 3 RT: 009 RW: 03", "luas_bumi": "800", "luas_bng": "0", 
+        "tagihan": "Rp 107.80", "status": "Lunas (Kolektor 5)"
+    },
+    {
+        "blok": "004", "no_urut": "0145", 
+        "nop": "18.10.080.003.004.0145.0", "nama": "KATINO", 
+        "alamat": "DS 02 RT: 006 RW: 03", "luas_bumi": "400", "luas_bng": "0", 
+        "tagihan": "Rp 34.38", "status": "Lunas (Kolektor 4)"
+    },
+    {
+        "blok": "005", "no_urut": "0071", 
+        "nop": "18.10.080.003.005.0071.0", "nama": "WARDOYO", 
+        "alamat": "DS 02 RT: 006 RW: 03", "luas_bumi": "765", "luas_bng": "31", 
+        "tagihan": "Rp 39.02", "status": "Belum Bayar"
+    },
+    {
+        "blok": "005", "no_urut": "0060", 
+        "nop": "18.10.080.003.005.0060.0", "nama": "PONEN", 
+        "alamat": "DS 4 RT: 000 RW: 00", "luas_bumi": "955", "luas_bng": "0", 
+        "tagihan": "Rp 49.80", "status": "Belum Bayar"
+    },
+    {
+        "blok": "005", "no_urut": "0055", 
+        "nop": "18.10.080.003.005.0055.0", "nama": "KIJAN", 
+        "alamat": "DSN II RT: 006 RW: 03", "luas_bumi": "1.8", "luas_bng": "0", 
+        "tagihan": "Rp 53.13", "status": "Belum Bayar"
+    }
+]
 
 # ==========================================
 # SIDEBAR NAVIGATION
@@ -110,7 +112,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v4.5</b><br>Desa Smart City © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v5.0</b><br>Database Internal Off-Grid © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -129,49 +131,36 @@ if pilihan_login == "Portal Warga (User)":
     st.write("")
     if st.button("PINDAI DATA (SCAN MASTER)"):
         if input_blok and input_no:
-            with st.spinner("Sinkronisasi data satelit desa..."):
-                # Menyamakan format digit (Blok = 3 digit, Nomor urut = 4 digit)
+            with st.spinner("Memindai database lokal desa..."):
+                # Format agar digit selalu pas (Blok = 3 digit, No Urut = 4 digit)
                 blok_formatted = input_blok.zfill(3)
                 no_formatted = input_no.zfill(4)
                 
-                # Pola cari super aman: COCOK DENGAN ".005.0164" di dalam string NOP asli
-                pola_cari = f".{blok_formatted}.{no_formatted}"
+                # Proses pencarian di dalam database internal
+                hasil = None
+                for data in DATA_PBB:
+                    if data["blok"] == blok_formatted and data["no_urut"] == no_formatted:
+                        hasil = data
+                        break
                 
-                if col_nop:
-                    # Cari baris yang mengandung pola kode blok dan nomor urut tersebut
-                    hasil = df_master[df_master[col_nop].astype(str).str.contains(pola_cari, na=False, regex=False)]
-                    
-                    if not hasil.empty:
-                        data = hasil.iloc[0]
-                        
-                        # Ambil nilai data berdasarkan deteksi nama kolom otomatis yang sudah dikunci di atas
-                        v_nop = data[col_nop]
-                        v_nama = data[col_nama] if col_nama else "Tidak Ada Data"
-                        v_alamat = data[col_alamat] if col_alamat else "Tidak Ada Data"
-                        v_bumi = data[col_bumi] if col_bumi else "0"
-                        v_bng = data[col_bng] if col_bng else "0"
-                        v_bayar = data[col_bayar] if col_bayar else "Rp 0"
-                        v_status = data[col_status] if not pd.isna(data[col_status]) else "Belum Diinput"
-                        
-                        st.markdown(f"""
-                        <div class="futuristic-card">
-                            <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
-                            <p><b>NOP:</b> <span style='color:#00f5d4;'>{v_nop}</span></p>
-                            <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{str(v_nama)}</span></p>
-                            <p><b>ALAMAT OP:</b> {v_alamat}</p>
-                            <hr style='border-color:rgba(255,255,255,0.1);'>
-                            <p>📐 <b>Luas Bumi:</b> {v_bumi} m² | 🏢 <b>Luas Bangunan:</b> {v_bng} m²</p>
-                            <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{v_status}</span></p>
-                            <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
-                                <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
-                                <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>{v_bayar}</span>
-                            </div>
+                if hasil:
+                    st.markdown(f"""
+                    <div class="futuristic-card">
+                        <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
+                        <p><b>NOP:</b> <span style='color:#00f5d4;'>{hasil['nop']}</span></p>
+                        <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{hasil['nama']}</span></p>
+                        <p><b>ALAMAT OP:</b> {hasil['alamat']}</p>
+                        <hr style='border-color:rgba(255,255,255,0.1);'>
+                        <p>📐 <b>Luas Bumi:</b> {hasil['luas_bumi']} m² | 🏢 <b>Luas Bangunan:</b> {hasil['luas_bng']} m²</p>
+                        <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{hasil['status']}</span></p>
+                        <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
+                            <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
+                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>{hasil['tagihan']}</span>
                         </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tidak ditemukan.")
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.error("Sistem gagal melacak lokasi kolom NOP. Periksa baris ke-5 pada lembar kerja Anda.")
+                    st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tersebut tidak terdaftar di database lokal.")
         else:
             st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
 
@@ -184,5 +173,6 @@ elif pilihan_login == "Pamong Desa (Admin)":
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
         st.success("Akses Diterima. Selamat Bertugas, Pamong Desa!")
+        st.info("Database saat ini terkunci secara internal di dalam sistem script app.py.")
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Ditolak.")
