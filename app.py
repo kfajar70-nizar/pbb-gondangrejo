@@ -90,17 +90,17 @@ CSV_FILE_NAME = "data_pbb.csv"
 
 # 🟢 SILAKAN GANTI NOMOR DI BAWAH INI (Awali dengan 62, jangan pakai 0 atau +)
 DAFTAR_WA_KOLEKTOR = {
-    "Dusun 1": "6281279771829",
-    "Dusun 2": "6285367665490",
-    "Dusun 3": "62895615741400",
-    "Dusun 4": "6282177680623",
-    "Dusun 5": "6285269879548",
-    "Dusun 6": "6285279366615",
-    "Dusun 7": "6281324518763",
-    "Dusun 8": "6285382657636",
-    "Dusun 9": "6285381027147",
-    "Dusun 10": "6281272359303",
-    "PUSAT_ADMIN": "6285695557674" # <-- Nomor ke-11 untuk Belum Terinput, Hapus, BPN, dll.
+    "Dusun 1": "6281111111111",
+    "Dusun 2": "6282222222222",
+    "Dusun 3": "6283333333333",
+    "Dusun 4": "6284444444444",
+    "Dusun 5": "6285555555555",
+    "Dusun 6": "6286666666666",
+    "Dusun 7": "6287777777777",
+    "Dusun 8": "6288888888888",
+    "Dusun 9": "6289999999999",
+    "Dusun 10": "6281010101010",
+    "PUSAT_ADMIN": "6289512345678" # Nomor ke-11
 }
 
 def format_clean_luas(val):
@@ -149,19 +149,33 @@ def load_local_data():
         st.stop()
     try:
         df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
+        
+        # Standarisasi spasi nama kolom bawaan panda
         df.columns = df.columns.str.strip()
         
+        # Filter anti-sampah excel kosong
         df = df.dropna(subset=['NOP', 'NAMA WP'], how='all')
         df = df[df['NOP'].astype(str).str.strip() != '']
         
+        # Bersihkan data keuangan & luas tanah
         df['LUAS BUMI NUM'] = df['LUAS BUMI'].apply(format_clean_luas)
         df['LUAS BNG NUM'] = df['LUAS BNG'].apply(format_clean_luas)
         df['TAGIHAN NUM'] = df['PBB HARUS DIBAYAR (Rp)'].apply(format_clean_rupiah)
         
+        # Deteksi status dusun di Kolom Pertama
         kolom_status_asal = df.columns[0]
         df['STATUS_ASLI'] = df[kolom_status_asal]
         df['DUSUN_CLEAN'] = df['STATUS_ASLI'].apply(bersihkan_nama_dusun)
         
+        # 🎯 LOGIKA BARU FITUR SETORAN (Mendeteksi Kolom P / indeks kolom ke-15)
+        # Jika kolom P ada isinya dan mengandung kata 'sudah setor', tandai LUNAS
+        if len(df.columns) >= 16:
+            kolom_p = df.columns[15] # Indeks ke-15 adalah kolom ke-16 (Kolom P)
+            df['STATUS_BAYAR'] = df[kolom_p].astype(str).str.lower().str.contains('sudah setor', na=False).map({True: 'LUNAS', False: 'BELUM LUNAS'})
+        else:
+            # Proteksi jika user membuat file csv yang kolomnya kurang dari P
+            df['STATUS_BAYAR'] = 'BELUM LUNAS'
+            
         return df
     except Exception as e:
         st.error(f"⚠️ Gagal membaca database CSV lokal. Error: {e}")
@@ -176,13 +190,13 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.6</b><br>Multi-Routing WA Kolektor © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.7</b><br>Sistem Integrasi Kas & Setoran © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
 # ==========================================
 if pilihan_login == "Portal Warga (User)":
-    st.markdown("<h1> DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_html=True)
     st.write("")
     
@@ -212,8 +226,14 @@ if pilihan_login == "Portal Warga (User)":
                     v_bng = data['LUAS BNG NUM']
                     v_bayar = data['TAGIHAN NUM']
                     v_status = data['DUSUN_CLEAN']
+                    v_lunas = data['STATUS_BAYAR']
                     
-                    # 🎯 LOGIKA FILTERING MULTI-NOMOR WHATSAPP
+                    # Tentukan banner warna status lunas untuk warga
+                    if v_lunas == "LUNAS":
+                        status_html = "<div style='background:rgba(37, 211, 102, 0.15); padding:10px; border-radius:8px; border:1px solid #25D366; color:#25D366; text-align:center; font-weight:bold; margin-top:10px;'>✅ STATUS PEMBAYARAN: LUNAS (SUDAH SETOR)</div>"
+                    else:
+                        status_html = "<div style='background:rgba(239, 71, 111, 0.15); padding:10px; border-radius:8px; border:1px solid #ef476f; color:#ef476f; text-align:center; font-weight:bold; margin-top:10px;'>⚠️ STATUS PEMBAYARAN: BELUM BAYAR</div>"
+                    
                     if v_status in DAFTAR_WA_KOLEKTOR:
                         nomor_wa_tujuan = DAFTAR_WA_KOLEKTOR[v_status]
                         label_kolektor = f"HUBUNGI KOLEKTOR {v_status.upper()}"
@@ -221,8 +241,7 @@ if pilihan_login == "Portal Warga (User)":
                         nomor_wa_tujuan = DAFTAR_WA_KOLEKTOR["PUSAT_ADMIN"]
                         label_kolektor = f"HUBUNGI PUSAT DATA (STATUS: {v_status.upper()})"
                     
-                    # Susun teks pesan otomatis khusus
-                    pesan_wa = f"Halo Pamong Desa Gondangrejo, saya ingin mengonfirmasi/membayar PBB atas nama {v_nama}.\n\nBerikut data Objek Pajak saya:\n- NOP: {v_nop}\n- Alamat OP: {v_alamat}\n- Tagihan: Rp {v_bayar:,}\n- Status Lapangan: {v_status}\n\nMohon petunjuk pembayarannya, terima kasih!".replace(",", ".")
+                    pesan_wa = f"Halo Pamong Desa Gondangrejo, saya ingin mengonfirmasi PBB atas nama {v_nama}.\n\nBerikut data Objek Pajak saya:\n- NOP: {v_nop}\n- Alamat OP: {v_alamat}\n- Tagihan: Rp {v_bayar:,}\n- Status Lapangan: {v_status}\n- Status Bayar: {v_lunas}\n\nMohon dibantu, terima kasih!".replace(",", ".")
                     pesan_wa_encoded = urllib.parse.quote(pesan_wa)
                     link_wa = f"https://wa.me/{nomor_wa_tujuan}?text={pesan_wa_encoded}"
                     
@@ -239,6 +258,7 @@ if pilihan_login == "Portal Warga (User)":
                             <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
                             <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar:,}</span>
                         </div>
+                        {status_html}
                         <a href="{link_wa}" target="_blank" class="wa-button">🟢 {label_kolektor}</a>
                     </div>
                     """.replace(",", "."), unsafe_allow_html=True)
@@ -257,55 +277,64 @@ elif pilihan_login == "Pamong Desa (Admin)":
     if password == "gondangrejo2026":
         st.success("🔒 Akses Diterima. Dashboard Rekap Terbuka.")
         
-        # Perhitungan Data Global
+        # Perhitungan Keuangan Global Riil
         total_wp = len(df_master)
         total_target_pbb = df_master['TAGIHAN NUM'].sum()
         total_luas_bumi = df_master['LUAS BUMI NUM'].sum()
         total_luas_bng = df_master['LUAS BNG NUM'].sum()
         
-        # Indikator Progress Input
-        sudah_input_wp = len(df_master[~df_master['DUSUN_CLEAN'].isin(["BELUM TERINPUT", "HAPUS", "BPN"])])
-        persentase_progres = (sudah_input_wp / total_wp) if total_wp > 0 else 0
+        # Perhitungan Riil Kas Setoran Masuk vs Tunggakan
+        df_lunas = df_master[df_master['STATUS_BAYAR'] == 'LUNAS']
+        df_belum = df_master[df_master['STATUS_BAYAR'] != 'LUNAS']
         
-        st.write("### ⚡ PROGRES VALIDASI WILAYAH DUSUN")
-        st.progress(persentase_progres)
-        st.markdown(f"<p style='color:#00f5d4; font-weight:bold;'>📈 {sudah_input_wp:,} dari {total_wp:,} WP ({persentase_progres*100:.1f}%) Data Warga Sudah Terdistribusi ke 10 Dusun.</p>".replace(",", "."), unsafe_allow_html=True)
+        total_dana_masuk = df_lunas['TAGIHAN NUM'].sum()
+        total_tunggakan = df_belum['TAGIHAN NUM'].sum()
+        wp_lunas = len(df_lunas)
+        
+        persen_realisasi_dana = (total_dana_masuk / total_target_pbb) if total_target_pbb > 0 else 0
+        
+        # --- INDIKATOR GRAFIK KAS BAR NEON REALISASI PEMBAYARAN ---
+        st.write("### 💰 PROGRESS REALISASI PENERIMAAN PBB DESA")
+        st.progress(persen_realisasi_dana)
+        st.markdown(f"<p style='color:#25D366; font-weight:bold;'>📈 Realisasi Kas: Rp {total_dana_masuk:,} Berhasil Disetor dari Total Target Rp {total_target_pbb:,} ({persen_realisasi_dana*100:.2f}%)</p>".replace(",", "."), unsafe_allow_html=True)
         st.write("")
 
-        # Ringkasan Global
-        st.write("### 🌌 RINGKASAN GLOBAL DESA GONDANGREJO")
+        # Ringkasan Global Desa 4 Panel Utama
+        st.write("### 🌌 RINGKASAN GLOBAL & MONITORING KAS DESA")
         m_col1, m_col2 = st.columns(2)
         with m_col1:
+            st.markdown(f"""
+            <div class="futuristic-card" style="text-align: center; border-color:#25D366;">
+                <span style="color:#8d99ae; font-size:0.9rem;">🟢 TOTAL KAS MASUK (SUDAH SETOR)</span><br>
+                <span style="font-size:1.8rem; color:#25D366; font-weight:bold;">Rp {total_dana_masuk:,}</span><br>
+                <span style="font-size:0.9rem; color:#8d99ae;">Dari {wp_lunas:,} Wajib Pajak</span>
+            </div>
+            """.replace(",", "."), unsafe_allow_html=True)
             st.markdown(f"""
             <div class="futuristic-card" style="text-align: center;">
                 <span style="color:#8d99ae; font-size:0.9rem;">👥 TOTAL WAJIB PAJAK</span><br>
                 <span style="font-size:1.8rem; color:#00f5d4; font-weight:bold;">{total_wp:,} WP</span>
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
+        with m_col2:
             st.markdown(f"""
-            <div class="futuristic-card" style="text-align: center;">
-                <span style="color:#8d99ae; font-size:0.9rem;">📐 TOTAL LUAS BUMI DESA</span><br>
-                <span style="font-size:1.8rem; color:#fff; font-weight:bold;">{total_luas_bumi:,} m²</span>
+            <div class="futuristic-card" style="text-align: center; border-color:#ef476f;">
+                <span style="color:#8d99ae; font-size:0.9rem;">🔴 SISA TUNGGAKAN PBB (BELUM SETOR)</span><br>
+                <span style="font-size:1.8rem; color:#ef476f; font-weight:bold;">Rp {total_tunggakan:,}</span><br>
+                <span style="font-size:0.9rem; color:#8d99ae;">Dari {total_wp - wp_lunas:,} Wajib Pajak</span>
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
-        with m_col2:
             st.markdown(f"""
             <div class="futuristic-card" style="text-align: center;">
                 <span style="color:#8d99ae; font-size:0.9rem;">💰 TOTAL TARGET KETETAPAN PBB</span><br>
-                <span style="font-size:1.8rem; color:#00f5d4; font-weight:bold;">Rp {total_target_pbb:,}</span>
-            </div>
-            """.replace(",", "."), unsafe_allow_html=True)
-            st.markdown(f"""
-            <div class="futuristic-card" style="text-align: center;">
-                <span style="color:#8d99ae; font-size:0.9rem;">🏢 TOTAL LUAS BANGUNAN DESA</span><br>
-                <span style="font-size:1.8rem; color:#fff; font-weight:bold;">{total_luas_bng:,} m²</span>
+                <span style="font-size:1.8rem; color:#fff; font-weight:bold;">Rp {total_target_pbb:,}</span>
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
 
         # Top 5 Ketetapan PBB
         st.write("### 👑 TOP 5 ASSET KETETAPAN PBB TERBESAR SE-DESA")
-        df_top5 = df_master.nlargest(5, 'TAGIHAN NUM')[['NOP', 'NAMA WP', 'LUAS BUMI', 'PBB HARUS DIBAYAR (Rp)']]
-        df_top5.columns = ['NOP', 'NAMA WAJIB PAJAK', 'LUAS BUMI', 'NILAI TAGIHAN']
+        df_top5 = df_master.nlargest(5, 'TAGIHAN NUM')[['NOP', 'NAMA WP', 'LUAS BUMI', 'PBB HARUS DIBAYAR (Rp)', 'STATUS_BAYAR']]
+        df_top5.columns = ['NOP', 'NAMA WAJIB PAJAK', 'LUAS BUMI', 'NILAI TAGIHAN', 'STATUS BAYAR']
         st.dataframe(df_top5, use_container_width=True, hide_index=True)
 
         # Rekap Per Wilayah Dusun
@@ -319,7 +348,7 @@ elif pilihan_login == "Pamong Desa (Admin)":
 
         # Validator detail nama (By Name)
         st.write("---")
-        st.write("### 🔍 VALIDATOR DATA LAPANGAN (BY NAME)")
+        st.write("### 🔍 VALIDATOR DATA LAPANGAN (BY NAME & SETORAN)")
         st.write("Pilih kategori di bawah untuk melihat rincian nama wajib pajak secara mendetail.")
 
         list_kategori = sorted(df_master['DUSUN_CLEAN'].unique())
@@ -329,11 +358,14 @@ elif pilihan_login == "Pamong Desa (Admin)":
         sub_wp = len(df_filtered_admin)
         sub_uang = df_filtered_admin['TAGIHAN NUM'].sum()
         
-        st.info(f"📊 Kategori **{pilihan_kategori}** memiliki **{sub_wp:,} Objek Pajak** dengan total ketetapan **Rp {sub_uang:,}**".replace(",", "."))
+        # Sub-hitung setoran per kategori pilihan
+        sub_lunas_uang = df_filtered_admin[df_filtered_admin['STATUS_BAYAR']=='LUNAS']['TAGIHAN NUM'].sum()
+        
+        st.info(f"📊 Kategori **{pilihan_kategori}** memiliki **{sub_wp:,} Objek Pajak** | Total Target: **Rp {sub_uang:,}** | Setoran Masuk: **Rp {sub_lunas_uang:,}**".replace(",", "."))
         
         if not df_filtered_admin.empty:
-            df_tabel_admin = df_filtered_admin[['NOP', 'NAMA WP', 'ALAMAT OP', 'LUAS BUMI', 'PBB HARUS DIBAYAR (Rp)']].copy()
-            df_tabel_admin.columns = ['NOP', 'NAMA WAJIB PAJAK', 'ALAMAT OBJEK', 'LUAS TANAH', 'TAGIHAN PBB']
+            df_tabel_admin = df_filtered_admin[['NOP', 'NAMA WP', 'ALAMAT OP', 'PBB HARUS DIBAYAR (Rp)', 'STATUS_BAYAR']].copy()
+            df_tabel_admin.columns = ['NOP', 'NAMA WAJIB PAJAK', 'ALAMAT OBJEK', 'TAGIHAN PBB', 'STATUS PEMBAYARAN']
             st.dataframe(df_tabel_admin, use_container_width=True, hide_index=True)
             
             csv_data = df_tabel_admin.to_csv(index=False).encode('utf-8')
