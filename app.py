@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# CUSTOM CSS FOR FUTURISTIC UI (DARK & NEON)
+# CUSTOM CSS FOR FUTURISTIC UI & PRINT LOGIC
 # ==========================================
 st.markdown("""
 <style>
@@ -87,10 +87,31 @@ st.markdown("""
         line-height: 1.2;
         margin-top: 15px;
         margin-bottom: 15px;
+        white-space: pre-wrap;
     }
     label {
         color: #00f5d4 !important;
         font-weight: 600 !important;
+    }
+
+    /* CSS Khusus Cetak: Menyembunyikan elemen web yang tidak penting saat cetak */
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #area-cetak-kwitansi, #area-cetak-kwitansi * {
+            visibility: visible;
+        }
+        #area-cetak-kwitansi {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white !important;
+            color: black !important;
+            padding: 0;
+            margin: 0;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -154,7 +175,6 @@ def bersihkan_nama_dusun(val):
         return f"Dusun {angka_dusun[0]}"
     return val_upper
 
-# Fungsi Terbilang Otomatis untuk Angka Rupiah
 def angka_ke_terbilang(n):
     bilang = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
     if n < 12:
@@ -179,11 +199,9 @@ def ekstrak_tanggal(val_kolom_p):
     if pd.isna(val_kolom_p):
         return None
     val_str = str(val_kolom_p).strip()
-    # Cari pola tanggal DD/MM/YYYY atau DD-MM-YYYY atau DD/MM
     pencarian = re.search(r'(\d{1,2}[/\-]\d{1,2}([/\-]\d{2,4})?)', val_str)
     if pencarian:
         return pencarian.group(1)
-    # Jika ada teks 'sudah setor' tanpa tanggal spesifik, beri tanggal default hari ini
     if 'setor' in val_str.lower():
         return datetime.now().strftime("%d/%m/%Y")
     return None
@@ -206,7 +224,6 @@ def load_local_data():
         df['STATUS_ASLI'] = df[kolom_status_asal]
         df['DUSUN_CLEAN'] = df['STATUS_ASLI'].apply(bersihkan_nama_dusun)
         
-        # Logika Deteksi Pembayaran & Fitur No. 2 (Ekstrak Tanggal)
         if len(df.columns) >= 16:
             kolom_p = df.columns[15]
             df['RAW_P'] = df[kolom_p].astype(str)
@@ -230,7 +247,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.8</b><br>Kwitansi & Tren Harian © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.9</b><br>Fitur Cetak Langsung © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -258,7 +275,6 @@ if pilihan_login == "Portal Warga (User)":
                 
                 if not hasil.empty:
                     data = hasil.iloc[0]
-                    
                     v_nop = data.get('NOP', 'Tidak Ada Data')
                     v_nama = data.get('NAMA WP', 'Tidak Ada Data')
                     v_alamat = data.get('ALAMAT OP', 'Tidak Ada Data')
@@ -318,8 +334,6 @@ elif pilihan_login == "Pamong Desa (Admin)":
         
         total_wp = len(df_master)
         total_target_pbb = df_master['TAGIHAN NUM'].sum()
-        total_luas_bumi = df_master['LUAS BUMI NUM'].sum()
-        total_luas_bng = df_master['LUAS BNG NUM'].sum()
         
         df_lunas = df_master[df_master['STATUS_BAYAR'] == 'LUNAS']
         df_belum = df_master[df_master['STATUS_BAYAR'] != 'LUNAS']
@@ -334,16 +348,16 @@ elif pilihan_login == "Pamong Desa (Admin)":
         st.markdown(f"<p style='color:#25D366; font-weight:bold;'>📈 Realisasi Kas: Rp {total_dana_masuk:,} Berhasil Disetor dari Total Target Rp {total_target_pbb:,} ({persen_realisasi_dana*100:.2f}%)</p>".replace(",", "."), unsafe_allow_html=True)
         st.write("")
 
-        # --- FEATURE NO. 2: GRAFIK TREN SETORAN HARIAN ---
+        # Grafik Tren Harian
         st.write("### 📈 GRAFIK TREN SETORAN KAS HARIAN DESA")
         df_tren_hari = df_lunas.dropna(subset=['TANGGAL_BAYAR']).groupby('TANGGAL_BAYAR')['TAGIHAN NUM'].sum().reset_index()
         if not df_tren_hari.empty:
             df_tren_hari = df_tren_hari.sort_values(by='TANGGAL_BAYAR')
             st.line_chart(data=df_tren_hari, x='TANGGAL_BAYAR', y='TAGIHAN NUM', color='#25D366')
         else:
-            st.info("💡 Belum ada data tren harian. Tulis tanggal pembayaran di Kolom P (contoh: 08/06/2026) untuk memunculkan grafik garis.")
+            st.info("💡 Belum ada data tren harian. Tulis tanggal pembayaran di Kolom P untuk memunculkan grafik.")
 
-        # Ringkasan Global
+        # Ringkasan Global Desa 4 Panel
         st.write("### 🌌 RINGKASAN GLOBAL & MONITORING KAS DESA")
         m_col1, m_col2 = st.columns(2)
         with m_col1:
@@ -375,7 +389,7 @@ elif pilihan_login == "Pamong Desa (Admin)":
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
 
-        # Validator detail nama (By Name)
+        # Validator detail nama
         st.write("---")
         st.write("### 🔍 VALIDATOR DATA LAPANGAN & GENERATOR KWITANSI")
         
@@ -394,19 +408,19 @@ elif pilihan_login == "Pamong Desa (Admin)":
             df_tabel_admin.columns = ['NOP', 'NAMA WAJIB PAJAK', 'ALAMAT OBJEK', 'TAGIHAN PBB', 'STATUS PEMBAYARAN']
             st.dataframe(df_tabel_admin, use_container_width=True, hide_index=True)
             
-            # --- FEATURE NO. 1: GENERATOR & CETAK KWITANSI DIGITAL ---
-            st.write("#### 🖨️ Panel Cetak Kwitansi Mandiri")
+            # --- MENU GENERATOR & DIREK PRINT KWITANSI ---
+            st.write("#### 🖨️ Panel Cetak Kwitansi Otomatis")
             warga_lunas_opsi = df_filtered_admin[df_filtered_admin['STATUS_BAYAR'] == 'LUNAS']['NAMA WP'].unique()
             
             if len(warga_lunas_opsi) > 0:
                 pilih_warga_cetak = st.selectbox("Pilih Nama Wajib Pajak yang Sudah Lunas:", warga_lunas_opsi)
                 data_cetak = df_filtered_admin[df_filtered_admin['NAMA WP'] == pilih_warga_cetak].iloc[0]
                 
-                # Formula Racikan Kwitansi
                 nomor_kwitansi = f"KW-2026/{datetime.now().strftime('%m%d')}/{data_cetak['No']:04d}"
                 terbilang_kalimat = angka_ke_terbilang(int(data_cetak['TAGIHAN NUM'])) + " Rupiah"
                 tgl_setor_print = data_cetak['TANGGAL_BAYAR'] if data_cetak['TANGGAL_BAYAR'] else datetime.now().strftime("%d/%m/%Y")
                 
+                # Desain Teks Kwitansi Kasir
                 teks_kwitansi_full = f"""============================================================
               PEMERINTAH KABUPATEN LAMPUNG TIMUR
                      KECAMATAN PEKALONGAN
@@ -442,15 +456,35 @@ Setoran Tanggal  : {tgl_setor_print}
 ============================================================
 *Bukti ini merupakan tanda terima sah tingkat desa*""".replace(",", ".")
 
-                # Munculkan Box Kwitansi Bergaya Kasir Tradisional
-                st.markdown(f"<pre class='kwitansi-box'>{teks_kwitansi_full}</pre>", unsafe_allow_html=True)
+                # 🌟 Kunci Utama Fitur Cetak: Dibungkus Div id="area-cetak-kwitansi"
+                st.markdown(f"""
+                <div id="area-cetak-kwitansi">
+                    <pre class='kwitansi-box'>{teks_kwitansi_full}</pre>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Tombol Salin untuk disebar ke WhatsApp Warga
-                st.text_area("Salin teks di bawah ini untuk dikirim ke WA warga:", teks_kwitansi_full, height=150)
+                # 🎯 TOMBOL MAGIC: Memicu printer sistem Windows / HP secara instan
+                st.write("👇 **Klik tombol di bawah ini untuk langsung memicu printer:**")
+                st.components.v1.html("""
+                    <button onclick="window.print()" style="
+                        width: 100%; 
+                        background: linear-gradient(45deg, #00f5d4, #7b2cbf); 
+                        color: white; 
+                        border: none; 
+                        padding: 12px; 
+                        font-weight: bold; 
+                        border-radius: 8px; 
+                        cursor: pointer;
+                        box-shadow: 0 4px 15px rgba(0, 245, 212, 0.3);
+                    ">🖨️ LINK KE PRINTER (CETAK INSTAN)</button>
+                """, height=55)
+                
+                st.write("---")
+                st.text_area("Salin teks kwitansi jika ingin di-share lewat WhatsApp saja:", teks_kwitansi_full, height=120)
             else:
                 st.warning("Belum ada Wajib Pajak yang berstatus LUNAS di dusun ini untuk dicetak kwitansinya.")
             
-            # Download Data Excel/CSV Dusun
+            # Download Data Rekap Dusun
             csv_data = df_tabel_admin.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label=f"📥 DOWNLOAD DATA REKAP ({pilihan_kategori.upper()})",
