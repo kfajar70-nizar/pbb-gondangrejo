@@ -98,31 +98,31 @@ def format_clean_rupiah(val):
         return 0
 
 def bersihkan_nama_dusun(val):
-    """Mengubah format mentah 'OK-Dusun_1' atau 'OK-DUSUN 2' menjadi 'Dusun 1' yang rapi"""
-    if pd.isna(val):
-        return "Belum Diinput"
-    val_upper = str(val).upper()
+    if pd.isna(val) or str(val).strip() == "":
+        return "BELUM TERINPUT"
+    val_upper = str(val).upper().strip()
+    if 'HAPUS' in val_upper:
+        return "HAPUS"
     angka_dusun = re.findall(r'\d+', val_upper)
     if 'DUSUN' in val_upper and angka_dusun:
         return f"Dusun {angka_dusun[0]}"
-    return str(val)
+    return val_upper
 
 def load_local_data():
     if not os.path.exists(CSV_FILE_NAME):
-        st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan di GitHub kamu!")
+        st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan!")
         st.stop()
     try:
         df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
         df.columns = df.columns.str.strip()
         
-        # Ekstraksi & konversi angka numerik
         df['LUAS BUMI NUM'] = df['LUAS BUMI'].apply(format_clean_luas)
         df['LUAS BNG NUM'] = df['LUAS BNG'].apply(format_clean_luas)
         df['TAGIHAN NUM'] = df['PBB HARUS DIBAYAR (Rp)'].apply(format_clean_rupiah)
         
-        # Bersihkan Kolom Status Lapangan (Kolom Pertama / Indeks 0)
-        kolom_status_asal = df.columns[0]
-        df['DUSUN_CLEAN'] = df[kolom_status_asal].apply(bersihkan_nama_dusun)
+        # Kolom Pertama (Status Lapangan)
+        df['STATUS_ASLI'] = df[df.columns[0]]
+        df['DUSUN_CLEAN'] = df['STATUS_ASLI'].apply(bersihkan_nama_dusun)
         
         return df
     except Exception as e:
@@ -138,7 +138,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.2</b><br>Format Dusun Clean © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.3</b><br>Validasi Lapangan © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -173,8 +173,6 @@ if pilihan_login == "Portal Warga (User)":
                     v_bumi = data['LUAS BUMI NUM']
                     v_bng = data['LUAS BNG NUM']
                     v_bayar = data['TAGIHAN NUM']
-                    
-                    # Menggunakan hasil pembersihan string dusun yang baru
                     v_status = data['DUSUN_CLEAN']
                     
                     st.markdown(f"""
@@ -242,30 +240,51 @@ elif pilihan_login == "Pamong Desa (Admin)":
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
 
-        # Rekap Per Dusun
+        # Rekap Per Wilayah Dusun (Tabel & Grafik)
         st.write("### 📊 REKAPITULASI TARGET PER WILAYAH DUSUN")
         
-        # Filter tampilan agar label dusun rapi dan urut
-        df_master['DUSUN_UPPER'] = df_master['DUSUN_CLEAN'].str.upper()
-        df_rekap_dusun = df_master.groupby('DUSUN_UPPER').agg(
+        df_rekap_dusun = df_master.groupby('DUSUN_CLEAN').agg(
             Jumlah_WP=('NOP', 'count'),
-            Total_Luas_Bumi=('LUAS BUMI NUM', 'sum'),
             Total_Target_PBB=('TAGIHAN NUM', 'sum')
         ).reset_index()
         
-        df_rekap_dusun = df_rekap_dusun.sort_values(by='DUSUN_UPPER')
+        df_rekap_dusun = df_rekap_dusun.sort_values(by='DUSUN_CLEAN')
         
-        df_tampilan_dusun = df_rekap_dusun.copy()
-        df_tampilan_dusun['Jumlah_WP'] = df_tampilan_dusun['Jumlah_WP'].map('{:,}'.format).str.replace(',', '.')
-        df_tampilan_dusun['Total_Luas_Bumi'] = df_tampilan_dusun['Total_Luas_Bumi'].map('{:,} m²'.format).str.replace(',', '.')
-        df_tampilan_dusun['Total_Target_PBB'] = df_tampilan_dusun['Total_Target_PBB'].map('Rp {:,}'.format).str.replace(',', '.')
-        df_tampilan_dusun.columns = ['WILAYAH DUSUN', 'JUMLAH WP', 'TOTAL LUAS BUMI', 'TOTAL TARGET TAGIHAN PBB']
+        # Grafik
+        st.bar_chart(data=df_rekap_dusun, x='DUSUN_CLEAN', y='Total_Target_PBB', color='#9b5de5')
+
+        # ==========================================
+        # NEW FEATURE: VALIDATION & DATA BY NAME DETECTOR
+        # ==========================================
+        st.write("---")
+        st.write("### 🔍 VALIDATOR DATA LAPANGAN (BY NAME)")
+        st.write("Pilih kategori di bawah untuk melihat rincian nama wajib pajak secara mendetail.")
+
+        # Ambil daftar filter unik dari status lapangan (Dusun 1, Dusun 2, HAPUS, BELUM TERINPUT)
+        list_kategori = sorted(df_master['DUSUN_CLEAN'].unique())
         
-        st.dataframe(df_tampilan_dusun, use_container_width=True, hide_index=True)
+        pilihan_kategori = st.selectbox(
+            "📁 PILIH KATEGORI VALIDASI STATUS:",
+            list_kategori
+        )
         
-        # Grafik Per Dusun
-        st.write("📈 **Grafik Perbandingan Target Pajak Ketetapan per Dusun (Rp)**")
-        st.bar_chart(data=df_rekap_dusun, x='DUSUN_UPPER', y='Total_Target_PBB', color='#9b5de5')
+        # Filter data master berdasarkan pilihan Admin
+        df_filtered_admin = df_master[df_master['DUSUN_CLEAN'] == pilihan_kategori]
+        
+        # Hitung Ringkasan Singkat Filter
+        sub_wp = len(df_filtered_admin)
+        sub_uang = df_filtered_admin['TAGIHAN NUM'].sum()
+        
+        st.info(f"📊 Kategori **{pilihan_kategori}** memiliki **{sub_wp:,} Objek Pajak** dengan total ketetapan **Rp {sub_uang:,}**".replace(",", "."))
+        
+        # Tampilkan Tabel Warga Hasil Filter
+        if not df_filtered_admin.empty:
+            df_tabel_admin = df_filtered_admin[['NOP', 'NAMA WP', 'ALAMAT OP', 'LUAS BUMI', 'PBB HARUS DIBAYAR (Rp)']].copy()
+            df_tabel_admin.columns = ['NOP', 'NAMA WAJIB PAJAK', 'ALAMAT OBJEK', 'LUAS TANAH', 'TAGIHAN PBB']
+            
+            st.dataframe(df_tabel_admin, use_container_width=True, hide_index=True)
+        else:
+            st.write("Tidak ada data dalam kategori ini.")
 
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Panel Rekap Ditolak.")
