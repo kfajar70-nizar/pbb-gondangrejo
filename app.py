@@ -252,7 +252,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v8.1</b><br>Rupiah & Grafik Dusun © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v8.2</b><br>Anti-KeyError Edition © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -307,99 +307,3 @@ if pilihan_login == "Portal Warga (User)":
                     
                     st.markdown(f"""
                     <div class="futuristic-card">
-                        <h3 style='margin-top:0; color:#00f5d4 !important;'>📊 DATA OBJEK PAJAK</h3>
-                        <p><b>NOP:</b> <span style='color:#00f5d4;'>{v_nop}</span></p>
-                        <p><b>NAMA WAJIB PAJAK:</b> <span style='font-size:1.2rem; color:#fff; font-weight:bold;'>{str(v_nama)}</span></p>
-                        <p><b>ALAMAT OP:</b> {v_alamat}</p>
-                        <hr style='border-color:rgba(255,255,255,0.1);'>
-                        <p>📐 <b>Luas Bumi:</b> {v_bumi:,} m² | 🏢 <b>Luas Bangunan:</b> {v_bng:,} m²</p>
-                        <p>📍 <b>Status Lapangan:</b> <span style='color:#9b5de5; font-weight:bold;'>{v_status}</span></p>
-                        <div style='background:rgba(0, 245, 212, 0.1); padding:15px; border-radius:8px; margin-top:15px; border-left: 5px solid #00f5d4;'>
-                            <span style='color:#8d99ae; font-size:0.9rem;'>TOTAL TAGIHAN PBB:</span><br>
-                            <span style='font-size:1.8rem; color:#00f5d4; font-weight:bold;'>Rp {v_bayar:,}</span>
-                        </div>
-                        {status_html}
-                        <a href="{link_wa}" target="_blank" class="wa-button">🟢 {label_kolektor}</a>
-                    </div>
-                    """.replace(",", "."), unsafe_allow_html=True)
-                else:
-                    st.error("Gagal Menemukan Data! Kombinasi Kode Blok dan Nomor Urut tersebut tidak ditemukan.")
-        else:
-            st.warning("Sistem memerlukan Kode Blok dan Nomor Urut untuk melakukan pencarian.")
-
-# ==========================================
-# 2. PORTAL PAMONG / ADMIN INTERFACE
-# ==========================================
-elif pilihan_login == "Pamong Desa (Admin)":
-    st.markdown("<h1>⚙️ CONTROL PANEL & REKAP DESA</h1>", unsafe_allow_html=True)
-    
-    password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
-    if password == "gondangrejo2026":
-        st.success("🔒 Akses Diterima. Dashboard Rekap Terbuka.")
-        
-        total_wp = len(df_master)
-        total_target_pbb = df_master['TAGIHAN NUM'].sum()
-        
-        df_lunas = df_master[df_master['STATUS_BAYAR'] == 'LUNAS']
-        df_belum = df_master[df_master['STATUS_BAYAR'] != 'LUNAS']
-        
-        total_dana_masuk = df_lunas['TAGIHAN NUM'].sum()
-        total_tunggakan = df_belum['TAGIHAN NUM'].sum()
-        wp_lunas = len(df_lunas)
-        persen_realisasi_dana = (total_dana_masuk / total_target_pbb) if total_target_pbb > 0 else 0
-        
-        st.write("### 💰 PROGRESS REALISASI PENERIMAAN PBB DESA")
-        st.progress(persen_realisasi_dana)
-        st.markdown(f"<p style='color:#25D366; font-weight:bold;'>📈 Realisasi Kas: Rp {total_dana_masuk:,} Berhasil Disetor dari Total Target Rp {total_target_pbb:,} ({persen_realisasi_dana*100:.2f}%)</p>".replace(",", "."), unsafe_allow_html=True)
-        st.write("")
-
-        # Processing Data Rekap Dusun Rapi Alami
-        rekap_dusun = df_master.groupby('DUSUN_CLEAN').agg(
-            Total_WP=('NOP', 'count'),
-            Total_Target=('TAGIHAN NUM', 'sum'),
-            Sudah_Setor=('TAGIHAN NUM', lambda x: x[df_master.loc[x.index, 'STATUS_BAYAR'] == 'LUNAS'].sum()),
-            Belum_Setor=('TAGIHAN NUM', lambda x: x[df_master.loc[x.index, 'STATUS_BAYAR'] != 'LUNAS'].sum())
-        ).reset_index()
-        
-        rekap_dusun['Capaian_%'] = (rekap_dusun['Sudah_Setor'] / rekap_dusun['Total_Target'] * 100).round(2)
-        rekap_dusun['sort_key'] = rekap_dusun['DUSUN_CLEAN'].apply(urutan_dusun_kunci)
-        rekap_dusun = rekap_dusun.sort_values(by='sort_key').drop(columns=['sort_key'])
-
-        # 🎯 FITUR BARU: GRAFIK TOTAL CAPAIAN PER DUSUN (%)
-        st.write("### 📊 GRAFIK PRESENTASE CAPAIAN REALISASI PER DUSUN (%)")
-        st.bar_chart(data=rekap_dusun, x='DUSUN_CLEAN', y='Capaian_%', color='#00f5d4')
-
-        # 🎯 FITUR BARU: TABEL REKAPITULASI DENGAN FORMAT RUPIAH (Rp)
-        st.write("### 📋 TABEL REKAPITULASI REALISASI PER WILAYAH DUSUN")
-        
-        rekap_tampilan = rekap_dusun.copy()
-        
-        # Mengubah nominal angka mentah menjadi string berformat Rupiah
-        rekap_tampilan['Total_Target'] = rekap_tampilan['Total_Target'].apply(lambda x: f"Rp {x:,}".replace(",", "."))
-        rekap_tampilan['Sudah_Setor'] = rekap_tampilan['Sudah_Setor'].apply(lambda x: f"Rp {x:,}".replace(",", "."))
-        rekap_tampilan['Belum_Setor'] = rekap_tampilan['Belum_Setor'].apply(lambda x: f"Rp {x:,}".replace(",", "."))
-        rekap_tampilan['Capaian_%'] = rekap_tampilan['Capaian_%'].apply(lambda x: f"{x}%")
-        
-        rekap_tampilan.columns = ['WILAYAH / DUSUN', 'TOTAL WP', 'TOTAL TARGET', 'KAS MASUK (SUDAH SETOR)', 'SISA TUNGGAKAN', 'CAPAIAN REALISASI']
-        st.dataframe(rekap_tampilan, use_container_width=True, hide_index=True)
-        
-        # Grafik Garis Tren Harian Desa
-        st.write("### 📈 GRAFIK TREN SETORAN KAS HARIAN DESA (GLOBAL)")
-        df_tren_hari = df_lunas.dropna(subset=['TANGGAL_BAYAR']).groupby('TANGGAL_BAYAR')['TAGIHAN NUM'].sum().reset_index()
-        if not df_tren_hari.empty:
-            df_tren_hari = df_tren_hari.sort_values(by='TANGGAL_BAYAR')
-            st.line_chart(data=df_tren_hari, x='TANGGAL_BAYAR', y='TAGIHAN NUM', color='#25D366')
-        else:
-            st.info("💡 Belum ada data tren harian. Ketik tanggal di Kolom P untuk menyalakan grafik.")
-
-        # Ringkasan Panel Global
-        st.write("### 🌌 RINGKASAN GLOBAL & MONITORING KAS DESA")
-        m_col1, m_col2 = st.columns(2)
-        with m_col1:
-            st.markdown(f"""
-            <div class="futuristic-card" style="text-align: center; border-color:#25D366;">
-                <span style="color:#8d99ae; font-size:0.9rem;">🟢 TOTAL KAS MASUK (SUDAH SETOR)</span><br>
-                <span style="font-size:1.8rem; color:#25D366; font-weight:bold;">Rp {total_dana_masuk:,}</span><br>
-                <span style="font-size:0.9rem; color:#8d99ae;">Dari {wp_lunas:,} Wajib Pajak</span>
-            </div>
-            """.
