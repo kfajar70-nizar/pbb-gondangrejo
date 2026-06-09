@@ -137,18 +137,14 @@ DAFTAR_WA_KOLEKTOR = {
 def format_clean_luas(val):
     if pd.isna(val):
         return 0
-    val_str = str(val).strip()
-    if '.' in val_str:
-        parts = val_str.split('.')
-        if len(parts[1]) == 1:
-            return int(parts[0] + parts[1] + "00")
-        elif len(parts[1]) == 2:
-            return int(parts[0] + parts[1] + "0")
-        else:
-            return int(parts[0] + parts[1])
+    val_str = str(val).strip().replace(',', '') # Hapus koma pemisah ribuan jika ada
+    if val_str.upper() == 'XXX' or val_str == '':
+        return 0
     try:
-        val_str = val_str.replace('.', '')
-        return int(val_str)
+        # Jika ada titik tunggal yang mendefinisikan ribuan (misal 3.125), kita bersihkan titiknya
+        if '.' in val_str and len(val_str.split('.')[-1]) == 3:
+            val_str = val_str.replace('.', '')
+        return int(float(val_str))
     except:
         return 0
 
@@ -174,13 +170,13 @@ def bersihkan_nama_dusun(val):
         return f"Dusun {angka_dusun[0]}"
     return val_upper
 
-# 🎯 LOGIKA PENGURUTAN ALAMI (Dusun 1, Dusun 2 ... Dusun 10)
 def urutan_dusun_kunci(nama_dusun):
     angka = re.findall(r'\d+', nama_dusun)
     if angka:
         return int(angka[0])
-    return 999  # Untuk data non-dusun ditaruh paling bawah
+    return 999 
 
+# ✨ Perbaikan Fungsi Terbilang agar support hingga Ratusan Juta/Milyar
 def angka_ke_terbilang(n):
     bilang = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
     if n < 12:
@@ -198,8 +194,8 @@ def angka_ke_terbilang(n):
     elif n < 1000000:
         return angka_ke_terbilang(n // 1000) + " Ribu " + angka_ke_terbilang(n % 1000)
     elif n < 1000000000:
-        return "Juta"
-    return "Besar"
+        return angka_ke_terbilang(n // 1000000) + " Juta " + angka_ke_terbilang(n % 1000000)
+    return "Angka Terlalu Besar"
 
 def ekstrak_tanggal(val_kolom_p):
     if pd.isna(val_kolom_p):
@@ -217,6 +213,7 @@ def load_local_data():
         st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan!")
         st.stop()
     try:
+        # Penyesuaian pembacaan header agar pas dengan struktur CSV PBB
         df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
         df.columns = df.columns.str.strip()
         df = df.dropna(subset=['NOP', 'NAMA WP'], how='all')
@@ -230,6 +227,7 @@ def load_local_data():
         df['STATUS_ASLI'] = df[kolom_status_asal]
         df['DUSUN_CLEAN'] = df['STATUS_ASLI'].apply(bersihkan_nama_dusun)
         
+        # Deteksi status bayar dari kolom ke-16 (Kolom P)
         if len(df.columns) >= 16:
             kolom_p = df.columns[15]
             df['RAW_P'] = df[kolom_p].astype(str)
@@ -253,7 +251,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v8.0</b><br>Rekap Urutan Dusun Rapi © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v8.1</b><br>Fixed Calculation & Terbilang © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -334,6 +332,7 @@ if pilihan_login == "Portal Warga (User)":
 elif pilihan_login == "Pamong Desa (Admin)":
     st.markdown("<h1>⚙️ CONTROL PANEL & REKAP DESA</h1>", unsafe_allow_html=True)
     
+    # Tips Keamanan: Pakai st.secrets untuk deployment production nyata di GitHub!
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
         st.success("🔒 Akses Diterima. Dashboard Rekap Terbuka.")
@@ -354,10 +353,8 @@ elif pilihan_login == "Pamong Desa (Admin)":
         st.markdown(f"<p style='color:#25D366; font-weight:bold;'>📈 Realisasi Kas: Rp {total_dana_masuk:,} Berhasil Disetor dari Total Target Rp {total_target_pbb:,} ({persen_realisasi_dana*100:.2f}%)</p>".replace(",", "."), unsafe_allow_html=True)
         st.write("")
 
-        # 🎯 FITUR UTAMA BARU: REKAP DAFTAR DUSUN URUT SECARA ALAMI (1,2...9,10)
         st.write("### 📊 TABEL REKAPITULASI REALISASI PER WILAYAH DUSUN")
         
-        # Hitung agregat per dusun
         rekap_dusun = df_master.groupby('DUSUN_CLEAN').agg(
             Total_WP=('NOP', 'count'),
             Total_Target=('TAGIHAN NUM', 'sum'),
@@ -365,19 +362,14 @@ elif pilihan_login == "Pamong Desa (Admin)":
             Belum_Setor=('TAGIHAN NUM', lambda x: x[df_master.loc[x.index, 'STATUS_BAYAR'] != 'LUNAS'].sum())
         ).reset_index()
         
-        # Tambahkan kolom persentase capaian
         rekap_dusun['Capaian_%'] = (rekap_dusun['Sudah_Setor'] / rekap_dusun['Total_Target'] * 100).round(2)
-        
-        # Gunakan fungsi urutan alami agar Dusun 10 tidak melompat ke atas
         rekap_dusun['sort_key'] = rekap_dusun['DUSUN_CLEAN'].apply(urutan_dusun_kunci)
         rekap_dusun = rekap_dusun.sort_values(by='sort_key').drop(columns=['sort_key'])
         
-        # Ganti format nama kolom agar cantik di web
         rekap_tampilan = rekap_dusun.copy()
         rekap_tampilan.columns = ['WILAYAH / DUSUN', 'TOTAL WP', 'TOTAL TARGET (Rp)', 'KAS MASUK (Rp)', 'SISA TUNGGAKAN (Rp)', 'CAPAIAN (%)']
         st.dataframe(rekap_tampilan, use_container_width=True, hide_index=True)
         
-        # Grafik Garis Tren Harian Desa
         st.write("### 📈 GRAFIK TREN SETORAN KAS HARIAN DESA")
         df_tren_hari = df_lunas.dropna(subset=['TANGGAL_BAYAR']).groupby('TANGGAL_BAYAR')['TAGIHAN NUM'].sum().reset_index()
         if not df_tren_hari.empty:
@@ -386,7 +378,6 @@ elif pilihan_login == "Pamong Desa (Admin)":
         else:
             st.info("💡 Belum ada data tren harian. Ketik tanggal di Kolom P untuk menyalakan grafik.")
 
-        # Ringkasan Panel Global
         st.write("### 🌌 RINGKASAN GLOBAL & MONITORING KAS DESA")
         m_col1, m_col2 = st.columns(2)
         with m_col1:
@@ -406,14 +397,11 @@ elif pilihan_login == "Pamong Desa (Admin)":
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
 
-        # Validator detail nama per dusun (Dropdown juga diurutkan rapi alami)
         st.write("---")
         st.write("### 🔍 VALIDATOR DATA LAPANGAN & GENERATOR KWITANSI")
         
         list_kategori = sorted(df_master['DUSUN_CLEAN'].unique(), key=urutan_dusun_kunci)
         pilihan_kategori = st.selectbox("📁 PILIH KATEGORI VALIDASI STATUS:", list_kategori)
-        
-        # Filter Opsi Tampilan Warga: Semua, Sudah Setor, atau Belum Setor
         filter_bayar_opsi = st.radio("Saring Status Warga:", ["Semua Warga", "Hanya yang Sudah Setor (LUNAS)", "Hanya yang Belum Setor"], horizontal=True)
         
         df_filtered_admin = df_master[df_master['DUSUN_CLEAN'] == pilihan_kategori]
@@ -432,7 +420,6 @@ elif pilihan_login == "Pamong Desa (Admin)":
             df_tabel_admin.columns = ['NOP', 'NAMA WAJIB PAJAK', 'ALAMAT OBJEK', 'TAGIHAN PBB', 'STATUS PEMBAYARAN']
             st.dataframe(df_tabel_admin, use_container_width=True, hide_index=True)
             
-            # PANEL CETAK KWITANSI OTOMATIS
             st.write("#### 🖨️ Panel Cetak Kwitansi Otomatis")
             warga_lunas_opsi = df_filtered_admin[df_filtered_admin['STATUS_BAYAR'] == 'LUNAS']['NAMA WP'].unique()
             
@@ -502,7 +489,7 @@ Setoran Tanggal  : {tgl_setor_print}
                 st.write("---")
                 st.text_area("Salin teks kwitansi jika ingin di-share lewat WhatsApp saja:", teks_kwitansi_full, height=120)
             else:
-                st.warning("Pilih opsi 'Semua Warga' atau 'Hanya yang Sudah Setor' di atas untuk menampilkan daftar nama wajib pajak yang bisa dicetak kwitansinya.")
+                st.warning("Pilih opsi 'Semua Warga' atau 'Hanya yang Sudah Setor' di atas untuk menampilkan daftar nama wajib pajak.")
             
             csv_data = df_tabel_admin.to_csv(index=False).encode('utf-8')
             st.download_button(
