@@ -121,17 +121,17 @@ st.markdown("""
 CSV_FILE_NAME = "data_pbb.csv"
 
 DAFTAR_WA_KOLEKTOR = {
-    "Dusun 1": "6281279771829",
-    "Dusun 2": "6285367665490",
-    "Dusun 3": "62895615741400",
-    "Dusun 4": "6282177680623",
-    "Dusun 5": "6285269879548",
-    "Dusun 6": "6285279366615",
-    "Dusun 7": "6281324518763",
-    "Dusun 8": "6285382657636",
-    "Dusun 9": "6285381027147",
-    "Dusun 10": "6281272359303",
-    "PUSAT_ADMIN": "6285695557674"
+    "Dusun 1": "6281111111111",
+    "Dusun 2": "6282222222222",
+    "Dusun 3": "6283333333333",
+    "Dusun 4": "6284444444444",
+    "Dusun 5": "6285555555555",
+    "Dusun 6": "6286666666666",
+    "Dusun 7": "6287777777777",
+    "Dusun 8": "6288888888888",
+    "Dusun 9": "6289999999999",
+    "Dusun 10": "6281010101010",
+    "PUSAT_ADMIN": "6289512345678"
 }
 
 def format_clean_luas(val):
@@ -257,7 +257,7 @@ st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #
 # 1. PORTAL WARGA / USER INTERFACE
 # ==========================================
 if pilihan_login == "Portal Warga (User)":
-    st.markdown("<h1> DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_html=True)
     st.write("")
     
