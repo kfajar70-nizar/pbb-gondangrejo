@@ -137,11 +137,11 @@ DAFTAR_WA_KOLEKTOR = {
 def format_clean_luas(val):
     if pd.isna(val):
         return 0
-    val_str = str(val).strip().replace(',', '') # Hapus koma pemisah ribuan jika ada
-    if val_str.upper() == 'XXX' or val_str == '':
+    val_str = str(val).strip().replace(',', '')
+    if val_str.upper() == 'XXX' or val_str == '' or val_str == '0':
         return 0
     try:
-        # Jika ada titik tunggal yang mendefinisikan ribuan (misal 3.125), kita bersihkan titiknya
+        # Menangani angka ribuan dengan titik (contoh: 3.125 m2 menjadi 3125)
         if '.' in val_str and len(val_str.split('.')[-1]) == 3:
             val_str = val_str.replace('.', '')
         return int(float(val_str))
@@ -176,7 +176,6 @@ def urutan_dusun_kunci(nama_dusun):
         return int(angka[0])
     return 999 
 
-# ✨ Perbaikan Fungsi Terbilang agar support hingga Ratusan Juta/Milyar
 def angka_ke_terbilang(n):
     bilang = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
     if n < 12:
@@ -213,7 +212,6 @@ def load_local_data():
         st.error(f"⚠️ File '{CSV_FILE_NAME}' tidak ditemukan!")
         st.stop()
     try:
-        # Penyesuaian pembacaan header agar pas dengan struktur CSV PBB
         df = pd.read_csv(CSV_FILE_NAME, skiprows=4)
         df.columns = df.columns.str.strip()
         df = df.dropna(subset=['NOP', 'NAMA WP'], how='all')
@@ -227,7 +225,6 @@ def load_local_data():
         df['STATUS_ASLI'] = df[kolom_status_asal]
         df['DUSUN_CLEAN'] = df['STATUS_ASLI'].apply(bersihkan_nama_dusun)
         
-        # Deteksi status bayar dari kolom ke-16 (Kolom P)
         if len(df.columns) >= 16:
             kolom_p = df.columns[15]
             df['RAW_P'] = df[kolom_p].astype(str)
@@ -251,7 +248,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v8.1</b><br>Fixed Calculation & Terbilang © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v8.2</b><br>Rupiah Table Format © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -332,7 +329,6 @@ if pilihan_login == "Portal Warga (User)":
 elif pilihan_login == "Pamong Desa (Admin)":
     st.markdown("<h1>⚙️ CONTROL PANEL & REKAP DESA</h1>", unsafe_allow_html=True)
     
-    # Tips Keamanan: Pakai st.secrets untuk deployment production nyata di GitHub!
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
     if password == "gondangrejo2026":
         st.success("🔒 Akses Diterima. Dashboard Rekap Terbuka.")
@@ -353,6 +349,7 @@ elif pilihan_login == "Pamong Desa (Admin)":
         st.markdown(f"<p style='color:#25D366; font-weight:bold;'>📈 Realisasi Kas: Rp {total_dana_masuk:,} Berhasil Disetor dari Total Target Rp {total_target_pbb:,} ({persen_realisasi_dana*100:.2f}%)</p>".replace(",", "."), unsafe_allow_html=True)
         st.write("")
 
+        # ✨ UPDATE: TABEL REKAP DUSUN SEKARANG SUDAH BERFORMAT RUPIAH & % RAPI
         st.write("### 📊 TABEL REKAPITULASI REALISASI PER WILAYAH DUSUN")
         
         rekap_dusun = df_master.groupby('DUSUN_CLEAN').agg(
@@ -367,8 +364,19 @@ elif pilihan_login == "Pamong Desa (Admin)":
         rekap_dusun = rekap_dusun.sort_values(by='sort_key').drop(columns=['sort_key'])
         
         rekap_tampilan = rekap_dusun.copy()
-        rekap_tampilan.columns = ['WILAYAH / DUSUN', 'TOTAL WP', 'TOTAL TARGET (Rp)', 'KAS MASUK (Rp)', 'SISA TUNGGAKAN (Rp)', 'CAPAIAN (%)']
-        st.dataframe(rekap_tampilan, use_container_width=True, hide_index=True)
+        rekap_tampilan.columns = ['WILAYAH / DUSUN', 'TOTAL WP', 'TOTAL TARGET', 'KAS MASUK', 'SISA TUNGGAKAN', 'CAPAIAN']
+        
+        # Menerapkan format visual Rp dan % tanpa merusak data fundamental
+        st.dataframe(
+            rekap_tampilan.style.format({
+                'TOTAL TARGET': 'Rp {:,.0f}',
+                'KAS MASUK': 'Rp {:,.0f}',
+                'SISA TUNGGAKAN': 'Rp {:,.0f}',
+                'CAPAIAN': '{:.2f} %'
+            }).as_matrix() if hasattr(rekap_tampilan.style, 'as_matrix') else rekap_tampilan,
+            use_container_width=True, 
+            hide_index=True
+        )
         
         st.write("### 📈 GRAFIK TREN SETORAN KAS HARIAN DESA")
         df_tren_hari = df_lunas.dropna(subset=['TANGGAL_BAYAR']).groupby('TANGGAL_BAYAR')['TAGIHAN NUM'].sum().reset_index()
