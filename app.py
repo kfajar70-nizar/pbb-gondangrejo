@@ -122,17 +122,17 @@ st.markdown("""
 CSV_FILE_NAME = "data_pbb.csv"
 
 DAFTAR_WA_KOLEKTOR = {
-    "Dusun 1": "6281279771829",
-    "Dusun 2": "6285367665490",
-    "Dusun 3": "62895615741400",
-    "Dusun 4": "6282177680623",
-    "Dusun 5": "6285269879548",
-    "Dusun 6": "6285279366615",
-    "Dusun 7": "6281324518763",
-    "Dusun 8": "6285382657636",
-    "Dusun 9": "6285381027147",
-    "Dusun 10": "6281272359303",
-    "PUSAT_ADMIN": "6285695557674"
+    "Dusun 1": "6281111111111",
+    "Dusun 2": "6282222222222",
+    "Dusun 3": "6283333333333",
+    "Dusun 4": "6284444444444",
+    "Dusun 5": "6285555555555",
+    "Dusun 6": "6286666666666",
+    "Dusun 7": "6287777777777",
+    "Dusun 8": "6288888888888",
+    "Dusun 9": "6289999999999",
+    "Dusun 10": "6281010101010",
+    "PUSAT_ADMIN": "6289512345678"
 }
 
 def format_clean_luas(val):
@@ -253,7 +253,7 @@ st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #
 # 1. PORTAL WARGA / USER INTERFACE
 # ==========================================
 if pilihan_login == "Portal Warga (User)":
-    st.markdown("<h1> DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>👁️ DIGITAL CEK PBB GONDANGREJO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#8d99ae;'>Sistem Pencarian Cepat Objek Pajak Bumi & Bangunan</p>", unsafe_allow_html=True)
     st.write("")
     
@@ -356,6 +356,64 @@ elif pilihan_login == "Pamong Desa (Admin)":
             st.line_chart(data=df_tren_hari, x='TANGGAL_BAYAR', y='TAGIHAN NUM', color='#25D366')
         else:
             st.info("💡 Belum ada data tren harian. Tulis tanggal pembayaran di Kolom P untuk memunculkan grafik.")
+
+        # ==========================================
+        # 🔥 FITUR BARU: LAPORAN REKAPITULASI PER DUSUN
+        # ==========================================
+        st.write("---")
+        st.write("### 📊 LAPORAN REKAPITULASI FINANSIAL PER DUSUN")
+        
+        # 1. Ambil data target per dusun
+        rkp_target = df_master.groupby('DUSUN_CLEAN').agg(
+            Wp_Target=('NOP', 'count'),
+            Rp_Target=('TAGIHAN NUM', 'sum')
+        ).reset_index()
+        
+        # 2. Ambil data yang sudah lunas per dusun
+        rkp_lunas = df_lunas.groupby('DUSUN_CLEAN').agg(
+            Wp_Lunas=('NOP', 'count'),
+            Rp_Lunas=('TAGIHAN NUM', 'sum')
+        ).reset_index()
+        
+        # 3. Gabungkan ringkasan tabel
+        df_rkp = pd.merge(rkp_target, rkp_lunas, on='DUSUN_CLEAN', how='left').fillna(0)
+        
+        # 4. Hitung kolom kalkulasi sisa piutang, sisa WP, dan persentase
+        df_rkp['Wp_Belum'] = df_rkp['Wp_Target'] - df_rkp['Wp_Lunas']
+        df_rkp['Rp_Mundur'] = df_rkp['Rp_Target'] - df_rkp['Rp_Lunas']
+        df_rkp['Persen_Lunas'] = (df_rkp['Wp_Lunas'] / df_rkp['Wp_Target'] * 100).round(2)
+        
+        # 5. Buat baris TOTAL DESA untuk diletakkan paling bawah
+        baris_total = pd.DataFrame([{
+            'DUSUN_CLEAN': 'TOTAL DESA',
+            'Wp_Target': df_rkp['Wp_Target'].sum(),
+            'Rp_Target': df_rkp['Rp_Target'].sum(),
+            'Wp_Lunas':  df_rkp['Wp_Lunas'].sum(),
+            'Rp_Lunas':  df_rkp['Rp_Lunas'].sum(),
+            'Wp_Belum':  df_rkp['Wp_Belum'].sum(),
+            'Rp_Mundur': df_rkp['Rp_Mundur'].sum(),
+            'Persen_Lunas': round((df_rkp['Wp_Lunas'].sum() / df_rkp['Wp_Target'].sum() * 100), 2)
+        }])
+        
+        df_rkp_final = pd.concat([df_rkp, baris_total], ignore_index=True)
+        
+        # Format visual angka agar ramah dibaca manusia (Format mata uang Rupiah)
+        df_rkp_view = df_rkp_final.copy()
+        df_rkp_view['Rp_Target'] = df_rkp_view['Rp_Target'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
+        df_rkp_view['Rp_Lunas'] = df_rkp_view['Rp_Lunas'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
+        df_rkp_view['Rp_Mundur'] = df_rkp_view['Rp_Mundur'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
+        df_rkp_view['Persen_Lunas'] = df_rkp_view['Persen_Lunas'].apply(lambda x: f"{x}%")
+        
+        # Ubah Nama Kolom agar Rapi di Aplikasi Web
+        df_rkp_view.columns = [
+            'Wilayah Wilayah', 'Target PBB (WP)', 'Nilai Ketetapan Target', 
+            'Sudah Setor (WP)', 'Kas Masuk (Rp)', 'Belum Setor (WP)', 
+            'Sisa Piutang PBB', 'Progres (%)'
+        ]
+        
+        # Tampilkan tabel interaktif
+        st.dataframe(df_rkp_view, use_container_width=True, hide_index=True)
+        st.write("---")
 
         # Ringkasan Global Desa 4 Panel
         st.write("### 🌌 RINGKASAN GLOBAL & MONITORING KAS DESA")
@@ -473,6 +531,7 @@ Setoran Tanggal  : {tgl_setor_print}
                         border: none; 
                         padding: 12px; 
                         font-weight: bold; 
+                        font-size: 16px; 
                         border-radius: 8px; 
                         cursor: pointer;
                         box-shadow: 0 4px 15px rgba(0, 245, 212, 0.3);
