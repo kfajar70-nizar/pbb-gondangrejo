@@ -30,7 +30,7 @@ st.markdown("""
         font-weight: 800 !important;
         text-align: center;
     }
-    h2, h3 {
+    h2, h3, h4 {
         color: #9b5de5 !important;
     }
     .futuristic-card {
@@ -94,7 +94,6 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* CSS Khusus Cetak: Menyembunyikan elemen web yang tidak penting saat cetak */
     @media print {
         body * {
             visibility: hidden;
@@ -175,6 +174,13 @@ def bersihkan_nama_dusun(val):
         return f"Dusun {angka_dusun[0]}"
     return val_upper
 
+# 🎯 LOGIKA PENGURUTAN ALAMI (Dusun 1, Dusun 2 ... Dusun 10)
+def urutan_dusun_kunci(nama_dusun):
+    angka = re.findall(r'\d+', nama_dusun)
+    if angka:
+        return int(angka[0])
+    return 999  # Untuk data non-dusun ditaruh paling bawah
+
 def angka_ke_terbilang(n):
     bilang = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
     if n < 12:
@@ -192,8 +198,8 @@ def angka_ke_terbilang(n):
     elif n < 1000000:
         return angka_ke_terbilang(n // 1000) + " Ribu " + angka_ke_terbilang(n % 1000)
     elif n < 1000000000:
-        return angka_ke_terbilang(n // 1000000) + " Juta " + angka_ke_terbilang(n % 1000000)
-    return "Angka Terlalu Besar"
+        return "Juta"
+    return "Besar"
 
 def ekstrak_tanggal(val_kolom_p):
     if pd.isna(val_kolom_p):
@@ -247,7 +253,7 @@ st.sidebar.markdown("<h2 style='color:#00f5d4; text-align:center;'>🛸 CORE SYS
 st.sidebar.write("---")
 pilihan_login = st.sidebar.radio("Pilih Otoritas Akses:", ["Portal Warga (User)", "Pamong Desa (Admin)"])
 st.sidebar.write("---")
-st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v7.9</b><br>Fitur Cetak Langsung © 2026</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='text-align: center; font-size: 0.8rem; color: #8d99ae;'><b>PBB GONDANGREJO v8.0</b><br>Rekap Urutan Dusun Rapi © 2026</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. PORTAL WARGA / USER INTERFACE
@@ -285,7 +291,7 @@ if pilihan_login == "Portal Warga (User)":
                     v_lunas = data['STATUS_BAYAR']
                     
                     if v_lunas == "LUNAS":
-                        status_html = f"<div style='background:rgba(37, 211, 102, 0.15); padding:10px; border-radius:8px; border:1px solid #25D366; color:#25D366; text-align:center; font-weight:bold; margin-top:10px;'>✅ STATUS PEMBAYARAN: LUNAS (TERTIK TANGGAL: {data['TANGGAL_BAYAR']})</div>"
+                        status_html = f"<div style='background:rgba(37, 211, 102, 0.15); padding:10px; border-radius:8px; border:1px solid #25D366; color:#25D366; text-align:center; font-weight:bold; margin-top:10px;'>✅ STATUS PEMBAYARAN: LUNAS (TERCATAT TANGGAL: {data['TANGGAL_BAYAR']})</div>"
                     else:
                         status_html = "<div style='background:rgba(239, 71, 111, 0.15); padding:10px; border-radius:8px; border:1px solid #ef476f; color:#ef476f; text-align:center; font-weight:bold; margin-top:10px;'>⚠️ STATUS PEMBAYARAN: BELUM BAYAR</div>"
                     
@@ -348,74 +354,39 @@ elif pilihan_login == "Pamong Desa (Admin)":
         st.markdown(f"<p style='color:#25D366; font-weight:bold;'>📈 Realisasi Kas: Rp {total_dana_masuk:,} Berhasil Disetor dari Total Target Rp {total_target_pbb:,} ({persen_realisasi_dana*100:.2f}%)</p>".replace(",", "."), unsafe_allow_html=True)
         st.write("")
 
-        # Grafik Tren Harian
+        # 🎯 FITUR UTAMA BARU: REKAP DAFTAR DUSUN URUT SECARA ALAMI (1,2...9,10)
+        st.write("### 📊 TABEL REKAPITULASI REALISASI PER WILAYAH DUSUN")
+        
+        # Hitung agregat per dusun
+        rekap_dusun = df_master.groupby('DUSUN_CLEAN').agg(
+            Total_WP=('NOP', 'count'),
+            Total_Target=('TAGIHAN NUM', 'sum'),
+            Sudah_Setor=('TAGIHAN NUM', lambda x: x[df_master.loc[x.index, 'STATUS_BAYAR'] == 'LUNAS'].sum()),
+            Belum_Setor=('TAGIHAN NUM', lambda x: x[df_master.loc[x.index, 'STATUS_BAYAR'] != 'LUNAS'].sum())
+        ).reset_index()
+        
+        # Tambahkan kolom persentase capaian
+        rekap_dusun['Capaian_%'] = (rekap_dusun['Sudah_Setor'] / rekap_dusun['Total_Target'] * 100).round(2)
+        
+        # Gunakan fungsi urutan alami agar Dusun 10 tidak melompat ke atas
+        rekap_dusun['sort_key'] = rekap_dusun['DUSUN_CLEAN'].apply(urutan_dusun_kunci)
+        rekap_dusun = rekap_dusun.sort_values(by='sort_key').drop(columns=['sort_key'])
+        
+        # Ganti format nama kolom agar cantik di web
+        rekap_tampilan = rekap_dusun.copy()
+        rekap_tampilan.columns = ['WILAYAH / DUSUN', 'TOTAL WP', 'TOTAL TARGET (Rp)', 'KAS MASUK (Rp)', 'SISA TUNGGAKAN (Rp)', 'CAPAIAN (%)']
+        st.dataframe(rekap_tampilan, use_container_width=True, hide_index=True)
+        
+        # Grafik Garis Tren Harian Desa
         st.write("### 📈 GRAFIK TREN SETORAN KAS HARIAN DESA")
         df_tren_hari = df_lunas.dropna(subset=['TANGGAL_BAYAR']).groupby('TANGGAL_BAYAR')['TAGIHAN NUM'].sum().reset_index()
         if not df_tren_hari.empty:
             df_tren_hari = df_tren_hari.sort_values(by='TANGGAL_BAYAR')
             st.line_chart(data=df_tren_hari, x='TANGGAL_BAYAR', y='TAGIHAN NUM', color='#25D366')
         else:
-            st.info("💡 Belum ada data tren harian. Tulis tanggal pembayaran di Kolom P untuk memunculkan grafik.")
+            st.info("💡 Belum ada data tren harian. Ketik tanggal di Kolom P untuk menyalakan grafik.")
 
-        # ==========================================
-        # 🔥 FITUR BARU: LAPORAN REKAPITULASI PER DUSUN
-        # ==========================================
-        st.write("---")
-        st.write("### 📊 LAPORAN REKAPITULASI FINANSIAL PER DUSUN")
-        
-        # 1. Ambil data target per dusun
-        rkp_target = df_master.groupby('DUSUN_CLEAN').agg(
-            Wp_Target=('NOP', 'count'),
-            Rp_Target=('TAGIHAN NUM', 'sum')
-        ).reset_index()
-        
-        # 2. Ambil data yang sudah lunas per dusun
-        rkp_lunas = df_lunas.groupby('DUSUN_CLEAN').agg(
-            Wp_Lunas=('NOP', 'count'),
-            Rp_Lunas=('TAGIHAN NUM', 'sum')
-        ).reset_index()
-        
-        # 3. Gabungkan ringkasan tabel
-        df_rkp = pd.merge(rkp_target, rkp_lunas, on='DUSUN_CLEAN', how='left').fillna(0)
-        
-        # 4. Hitung kolom kalkulasi sisa piutang, sisa WP, dan persentase
-        df_rkp['Wp_Belum'] = df_rkp['Wp_Target'] - df_rkp['Wp_Lunas']
-        df_rkp['Rp_Mundur'] = df_rkp['Rp_Target'] - df_rkp['Rp_Lunas']
-        df_rkp['Persen_Lunas'] = (df_rkp['Wp_Lunas'] / df_rkp['Wp_Target'] * 100).round(2)
-        
-        # 5. Buat baris TOTAL DESA untuk diletakkan paling bawah
-        baris_total = pd.DataFrame([{
-            'DUSUN_CLEAN': 'TOTAL DESA',
-            'Wp_Target': df_rkp['Wp_Target'].sum(),
-            'Rp_Target': df_rkp['Rp_Target'].sum(),
-            'Wp_Lunas':  df_rkp['Wp_Lunas'].sum(),
-            'Rp_Lunas':  df_rkp['Rp_Lunas'].sum(),
-            'Wp_Belum':  df_rkp['Wp_Belum'].sum(),
-            'Rp_Mundur': df_rkp['Rp_Mundur'].sum(),
-            'Persen_Lunas': round((df_rkp['Wp_Lunas'].sum() / df_rkp['Wp_Target'].sum() * 100), 2)
-        }])
-        
-        df_rkp_final = pd.concat([df_rkp, baris_total], ignore_index=True)
-        
-        # Format visual angka agar ramah dibaca manusia (Format mata uang Rupiah)
-        df_rkp_view = df_rkp_final.copy()
-        df_rkp_view['Rp_Target'] = df_rkp_view['Rp_Target'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-        df_rkp_view['Rp_Lunas'] = df_rkp_view['Rp_Lunas'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-        df_rkp_view['Rp_Mundur'] = df_rkp_view['Rp_Mundur'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-        df_rkp_view['Persen_Lunas'] = df_rkp_view['Persen_Lunas'].apply(lambda x: f"{x}%")
-        
-        # Ubah Nama Kolom agar Rapi di Aplikasi Web
-        df_rkp_view.columns = [
-            'Wilayah Wilayah', 'Target PBB (WP)', 'Nilai Ketetapan Target', 
-            'Sudah Setor (WP)', 'Kas Masuk (Rp)', 'Belum Setor (WP)', 
-            'Sisa Piutang PBB', 'Progres (%)'
-        ]
-        
-        # Tampilkan tabel interaktif
-        st.dataframe(df_rkp_view, use_container_width=True, hide_index=True)
-        st.write("---")
-
-        # Ringkasan Global Desa 4 Panel
+        # Ringkasan Panel Global
         st.write("### 🌌 RINGKASAN GLOBAL & MONITORING KAS DESA")
         m_col1, m_col2 = st.columns(2)
         with m_col1:
@@ -426,12 +397,6 @@ elif pilihan_login == "Pamong Desa (Admin)":
                 <span style="font-size:0.9rem; color:#8d99ae;">Dari {wp_lunas:,} Wajib Pajak</span>
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
-            st.markdown(f"""
-            <div class="futuristic-card" style="text-align: center;">
-                <span style="color:#8d99ae; font-size:0.9rem;">👥 TOTAL WAJIB PAJAK</span><br>
-                <span style="font-size:1.8rem; color:#00f5d4; font-weight:bold;">{total_wp:,} WP</span>
-            </div>
-            """.replace(",", "."), unsafe_allow_html=True)
         with m_col2:
             st.markdown(f"""
             <div class="futuristic-card" style="text-align: center; border-color:#ef476f;">
@@ -440,33 +405,34 @@ elif pilihan_login == "Pamong Desa (Admin)":
                 <span style="font-size:0.9rem; color:#8d99ae;">Dari {total_wp - wp_lunas:,} Wajib Pajak</span>
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
-            st.markdown(f"""
-            <div class="futuristic-card" style="text-align: center;">
-                <span style="color:#8d99ae; font-size:0.9rem;">💰 TOTAL TARGET KETETAPAN PBB</span><br>
-                <span style="font-size:1.8rem; color:#fff; font-weight:bold;">Rp {total_target_pbb:,}</span>
-            </div>
-            """.replace(",", "."), unsafe_allow_html=True)
 
-        # Validator detail nama
+        # Validator detail nama per dusun (Dropdown juga diurutkan rapi alami)
         st.write("---")
         st.write("### 🔍 VALIDATOR DATA LAPANGAN & GENERATOR KWITANSI")
         
-        list_kategori = sorted(df_master['DUSUN_CLEAN'].unique())
+        list_kategori = sorted(df_master['DUSUN_CLEAN'].unique(), key=urutan_dusun_kunci)
         pilihan_kategori = st.selectbox("📁 PILIH KATEGORI VALIDASI STATUS:", list_kategori)
         
+        # Filter Opsi Tampilan Warga: Semua, Sudah Setor, atau Belum Setor
+        filter_bayar_opsi = st.radio("Saring Status Warga:", ["Semua Warga", "Hanya yang Sudah Setor (LUNAS)", "Hanya yang Belum Setor"], horizontal=True)
+        
         df_filtered_admin = df_master[df_master['DUSUN_CLEAN'] == pilihan_kategori]
+        if filter_bayar_opsi == "Hanya yang Sudah Setor (LUNAS)":
+            df_filtered_admin = df_filtered_admin[df_filtered_admin['STATUS_BAYAR'] == 'LUNAS']
+        elif filter_bayar_opsi == "Hanya yang Belum Setor":
+            df_filtered_admin = df_filtered_admin[df_filtered_admin['STATUS_BAYAR'] != 'LUNAS']
+            
         sub_wp = len(df_filtered_admin)
         sub_uang = df_filtered_admin['TAGIHAN NUM'].sum()
-        sub_lunas_uang = df_filtered_admin[df_filtered_admin['STATUS_BAYAR']=='LUNAS']['TAGIHAN NUM'].sum()
         
-        st.info(f"📊 Kategori **{pilihan_kategori}** | Total Target: **Rp {sub_uang:,}** | Setoran Masuk: **Rp {sub_lunas_uang:,}**".replace(",", "."))
+        st.info(f"📊 Menampilkan **{sub_wp:,} Objek Pajak** pada **{pilihan_kategori}** ({filter_bayar_opsi}) | Sub-Total Nilai: **Rp {sub_uang:,}**".replace(",", "."))
         
         if not df_filtered_admin.empty:
             df_tabel_admin = df_filtered_admin[['NOP', 'NAMA WP', 'ALAMAT OP', 'PBB HARUS DIBAYAR (Rp)', 'STATUS_BAYAR']].copy()
             df_tabel_admin.columns = ['NOP', 'NAMA WAJIB PAJAK', 'ALAMAT OBJEK', 'TAGIHAN PBB', 'STATUS PEMBAYARAN']
             st.dataframe(df_tabel_admin, use_container_width=True, hide_index=True)
             
-            # --- MENU GENERATOR & DIREK PRINT KWITANSI ---
+            # PANEL CETAK KWITANSI OTOMATIS
             st.write("#### 🖨️ Panel Cetak Kwitansi Otomatis")
             warga_lunas_opsi = df_filtered_admin[df_filtered_admin['STATUS_BAYAR'] == 'LUNAS']['NAMA WP'].unique()
             
@@ -478,7 +444,6 @@ elif pilihan_login == "Pamong Desa (Admin)":
                 terbilang_kalimat = angka_ke_terbilang(int(data_cetak['TAGIHAN NUM'])) + " Rupiah"
                 tgl_setor_print = data_cetak['TANGGAL_BAYAR'] if data_cetak['TANGGAL_BAYAR'] else datetime.now().strftime("%d/%m/%Y")
                 
-                # Desain Teks Kwitansi Kasir
                 teks_kwitansi_full = f"""============================================================
               PEMERINTAH KABUPATEN LAMPUNG TIMUR
                      KECAMATAN PEKALONGAN
@@ -514,15 +479,12 @@ Setoran Tanggal  : {tgl_setor_print}
 ============================================================
 *Bukti ini merupakan tanda terima sah tingkat desa*""".replace(",", ".")
 
-                # 🌟 Kunci Utama Fitur Cetak: Dibungkus Div id="area-cetak-kwitansi"
                 st.markdown(f"""
                 <div id="area-cetak-kwitansi">
                     <pre class='kwitansi-box'>{teks_kwitansi_full}</pre>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # 🎯 TOMBOL MAGIC: Memicu printer sistem Windows / HP secara instan
-                st.write("👇 **Klik tombol di bawah ini untuk langsung memicu printer:**")
                 st.components.v1.html("""
                     <button onclick="window.print()" style="
                         width: 100%; 
@@ -531,7 +493,6 @@ Setoran Tanggal  : {tgl_setor_print}
                         border: none; 
                         padding: 12px; 
                         font-weight: bold; 
-                        font-size: 16px; 
                         border-radius: 8px; 
                         cursor: pointer;
                         box-shadow: 0 4px 15px rgba(0, 245, 212, 0.3);
@@ -541,18 +502,17 @@ Setoran Tanggal  : {tgl_setor_print}
                 st.write("---")
                 st.text_area("Salin teks kwitansi jika ingin di-share lewat WhatsApp saja:", teks_kwitansi_full, height=120)
             else:
-                st.warning("Belum ada Wajib Pajak yang berstatus LUNAS di dusun ini untuk dicetak kwitansinya.")
+                st.warning("Pilih opsi 'Semua Warga' atau 'Hanya yang Sudah Setor' di atas untuk menampilkan daftar nama wajib pajak yang bisa dicetak kwitansinya.")
             
-            # Download Data Rekap Dusun
             csv_data = df_tabel_admin.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label=f"📥 DOWNLOAD DATA REKAP ({pilihan_kategori.upper()})",
+                label=f"📥 DOWNLOAD DATA REKAP {filter_bayar_opsi.upper()}",
                 data=csv_data,
                 file_name=f"rekap_pbb_{pilihan_kategori.lower().replace(' ', '_')}.csv",
                 mime='text/csv'
             )
         else:
-            st.write("Tidak ada data dalam kategori ini.")
+            st.write("Tidak ada data warga dalam kategori filter ini.")
 
     elif password != "":
         st.error("Kode Otorisasi Salah! Akses Panel Rekap Ditolak.")
