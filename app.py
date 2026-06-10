@@ -106,18 +106,35 @@ DAFTAR_WA_KOLEKTOR = {
 def format_clean_luas(val):
     if pd.isna(val):
         return 0
-    val_str = str(val).strip()
-    if '.' in val_str:
-        parts = val_str.split('.')
-        if len(parts[1]) == 1:
-            return int(parts[0] + parts[1] + "00")
-        elif len(parts[1]) == 2:
-            return int(parts[0] + parts[1] + "0")
-        else:
-            return int(parts[0] + parts[1])
+    
+    # Ubah ke string, bersihkan spasi, dan hilangkan koma jika ada
+    val_str = str(val).strip().replace(',', '')
+    
+    # Jika data kosong atau berisi penanda khusus lapangan seperti 'XXX'
+    if val_str.upper() == 'XXX' or val_str == '' or val_str == '0':
+        return 0
+    
     try:
-        val_str = val_str.replace('.', '')
-        return int(val_str)
+        # LOGIKA PERBAIKAN FORMAT LUAS PBB INDONESIA
+        if '.' in val_str:
+            parts = val_str.split('.')
+            depan = parts[0]
+            belakang = parts[1]
+            
+            # Kasus 1: Jika belakangnya 1 digit (misal: 9.8 -> 980)
+            if len(belakang) == 1:
+                return int(depan + belakang + "0")
+            
+            # Kasus 2: Jika belakangnya 2 digit (misal: 2.05 -> 2050)
+            elif len(belakang) == 2:
+                return int(depan + belakang + "0")
+            
+            # Kasus 3: Jika belakangnya 3 digit, itu adalah ribuan murni (misal: 3.125 -> 3125)
+            elif len(belakang) == 3:
+                return int(depan + belakang)
+                
+        # Jika berupa angka bulat tanpa titik sama sekali
+        return int(float(val_str))
     except:
         return 0
 
