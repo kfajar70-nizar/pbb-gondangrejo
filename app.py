@@ -188,9 +188,9 @@ if pilihan_login == "Portal Warga (User)":
     
     col1, col2 = st.columns(2)
     with col1:
-        input_blok = st.text_input("📡 KODE BLOK / DUSUN", placeholder="Contoh: 5", key="user_blok")
+        input_blok = st.text_input("📡 KODE BLOK / DUSUN", placeholder="Contoh: 8", key="user_blok")
     with col2:
-        input_no = st.text_input("🔢 NOMOR URUT NOP", placeholder="Contoh: 164", key="user_no")
+        input_no = st.text_input("🔢 NOMOR URUT NOP", placeholder="Contoh: 11", key="user_no")
         
     st.write("")
     if st.button("PINDAI DATA (SCAN MASTER)"):
@@ -254,7 +254,7 @@ elif pilihan_login == "Pamong Desa (Admin)":
     st.markdown("<h1>⚙️ CONTROL PANEL & REKAP DESA</h1>", unsafe_allow_html=True)
     
     password = st.text_input("MASUKKAN KODE OTORISASI (PASSWORD):", type="password")
-    if password == "gondangrejo2026":
+    if password == "1234":
         st.success("🔒 Akses Diterima. Dashboard Rekap Terbuka.")
         
         # Perhitungan Data Global
